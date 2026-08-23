@@ -12,11 +12,14 @@ import {
   saveAuthenticationTokens,
 } from "./auth.storage";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-if (!API_BASE_URL) {
+if (!rawApiBaseUrl) {
   throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
 }
+
+const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "");
+
 
 export interface SignupRequest {
   fullName: string;

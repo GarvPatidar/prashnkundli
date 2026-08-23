@@ -31,11 +31,12 @@ export const env = {
 
   apiBaseUrl: getRequiredEnv(
     "NEXT_PUBLIC_API_BASE_URL",
-  ),
+  ).replace(/\/+$/, ""),
 
   websocketUrl: getRequiredEnv(
     "NEXT_PUBLIC_WS_URL",
-  ),
+  ).replace(/\/+$/, ""),
+
 
   marketDataProvider:
     process.env.NEXT_PUBLIC_MARKET_DATA_PROVIDER ??
