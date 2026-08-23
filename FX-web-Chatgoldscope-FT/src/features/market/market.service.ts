@@ -3,14 +3,17 @@ import type {
   MarketSnapshotResponse,
 } from "./market.types";
 
-const API_BASE_URL =
+const rawApiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL;
 
-if (!API_BASE_URL) {
+if (!rawApiBaseUrl) {
   throw new Error(
     "NEXT_PUBLIC_API_BASE_URL is not configured.",
   );
 }
+
+const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "");
+
 
 function isRecord(
   value: unknown,
