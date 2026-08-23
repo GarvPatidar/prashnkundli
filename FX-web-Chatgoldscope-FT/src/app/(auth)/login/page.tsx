@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -32,9 +33,12 @@ export default function LoginPage() {
         </div>
 
         <div className="surface p-6 sm:p-8">
-          <LoginForm />
+          <Suspense fallback={<div className="text-center text-sm text-[var(--text-muted)]">Loading form...</div>}>
+            <LoginForm />
+          </Suspense>
 
           <div className="my-6 flex items-center gap-3">
+
             <div className="h-px flex-1 bg-[var(--border)]" />
             <span className="text-xs text-[var(--text-subtle)]">
               OR
