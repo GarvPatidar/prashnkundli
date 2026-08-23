@@ -1,0 +1,1 @@
+export default function Page(){return <main className="container-shell py-10"><div className="surface p-6"><h1 className="text-2xl font-semibold capitalize">analyses</h1><p className="mt-3 text-[var(--text-muted)]">Admin module placeholder with no-index metadata inherited from admin layout.</p></div></main>}

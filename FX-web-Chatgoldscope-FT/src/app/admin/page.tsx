@@ -1,0 +1,2 @@
+const cards = [["Active users","1,284"],["Analyses today","4,901"],["Feed status","Healthy"],["Validation failures","0.7%"]];
+export default function AdminPage(){return <main className="container-shell py-10"><h1 className="text-3xl font-semibold">Operations overview</h1><div className="mt-8 grid gap-4 md:grid-cols-4">{cards.map(([k,v])=><div key={k} className="surface p-5"><p className="text-sm text-[var(--text-muted)]">{k}</p><p className="mt-3 text-2xl font-semibold">{v}</p></div>)}</div></main>}
