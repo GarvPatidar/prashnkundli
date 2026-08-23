@@ -1,4 +1,4 @@
-import argon2 from "argon2";
+import bcrypt from "bcryptjs";
 
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
@@ -22,12 +22,7 @@ export async function hashPassword(
 ): Promise<string> {
   validatePassword(password);
 
-  return argon2.hash(password, {
-    type: argon2.argon2id,
-    memoryCost: 19_456,
-    timeCost: 2,
-    parallelism: 1,
-  });
+  return bcrypt.hash(password, 10);
 }
 
 export async function verifyPassword(
@@ -35,7 +30,7 @@ export async function verifyPassword(
   password: string,
 ): Promise<boolean> {
   try {
-    return await argon2.verify(passwordHash, password);
+    return await bcrypt.compare(password, passwordHash);
   } catch {
     return false;
   }
