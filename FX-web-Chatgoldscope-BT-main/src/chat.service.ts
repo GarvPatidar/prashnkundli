@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
+import OpenAI from "openai";
 
+import { env } from "./config.js";
 import { aiResponseService } from "./modules/ai/ai-response.service.js";
+
 
 import {
   casualResponseService,
@@ -518,43 +521,41 @@ function createPersistedAssistantContent(
 }
 
 async function completeCasualRequest(
-  userId:
-    string,
-
-  conversationId:
-    string,
-
-  userMessageId:
-    string,
-
-  assistantMessageId:
-    string,
-
-  request:
-    ChatRequest,
-
-  emit?:
-    (
-      event:
-        ProgressEvent,
-    ) => void,
+  userId: string,
+  conversationId: string,
+  userMessageId: string,
+  assistantMessageId: string,
+  request: ChatRequest,
+  emit?: (event: ProgressEvent) => void,
 ): Promise<ExecuteChatResult> {
   /*
    * Casual requests take a lightweight path.
-   *
-   * They intentionally do NOT load:
-   *
-   * - market candles
-   * - indicators
-   * - confluence
-   * - economic news
-   * - risk calculations
-   * - market AI analysis
+   * They intentionally do NOT load market data, confluence, etc.
+   * If OpenAI is enabled, we use it for a lightweight chat response.
+   * Otherwise, we fallback to hardcoded mock patterns.
    */
-  const casualMessage =
-    casualResponseService.createResponse(
-      request,
-    );
+  let casualMessage = "";
+
+  if (env.AI_PROVIDER === "openai" && env.OPENAI_API_KEY) {
+    try {
+      const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+      const completion = await openai.chat.completions.create({
+        model: env.OPENAI_MODEL || "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are GoldScope, a helpful AI trading copilot for XAU/USD. Answer casual greetings and general chat messages in a friendly, conversational way. Keep responses brief (under 2 sentences) and steer them back to Gold/trading help if appropriate."
+          },
+          { role: "user", content: request.message }
+        ]
+      });
+      casualMessage = completion.choices[0]?.message?.content || "How can I help you with Gold or your XAU/USD trading today?";
+    } catch {
+      casualMessage = casualResponseService.createResponse(request);
+    }
+  } else {
+    casualMessage = casualResponseService.createResponse(request);
+  }
 
   await conversationRepository.update(
     userId,
@@ -563,6 +564,7 @@ async function completeCasualRequest(
     casualMessage,
     "completed",
   );
+
 
   const result:
     ExecuteChatResult = {
