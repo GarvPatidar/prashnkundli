@@ -303,8 +303,29 @@ export function determineCommunicationMode(
     return "EDUCATION";
   }
 
-  return "MARKET_ANALYSIS";
+  /*
+   * If it contains trading/market related terms, it is a MARKET_ANALYSIS query.
+   * Otherwise, route it as a CASUAL general chat query so it goes to OpenAI dynamically.
+   */
+  const tradingKeywords = [
+    "gold", "xau", "usd", "xauusd", "trade", "trading", "market", "price", "chart",
+    "trend", "buy", "sell", "long", "short", "bull", "bear", "forecast", "signal",
+    "level", "support", "resistance", "indicator", "candle", "analysis", "analyse", "analyze",
+    "outlook", "technical", "fundamental", "liquidity", "volatility",
+    "sona", "sone", "bhav", "rate", "niche", "upar", "uppar", "laya", "liya"
+  ];
+
+  const hasTradingKeywords = tradingKeywords.some((keyword) =>
+    message.includes(keyword),
+  );
+
+  if (hasTradingKeywords) {
+    return "MARKET_ANALYSIS";
+  }
+
+  return "CASUAL";
 }
+
 
 function determineTone(
   traderProfile:

@@ -544,7 +544,7 @@ async function completeCasualRequest(
         messages: [
           {
             role: "system",
-            content: "You are GoldScope, a helpful AI trading copilot for XAU/USD. Answer casual greetings and general chat messages in a friendly, conversational way. Keep responses brief (under 2 sentences) and steer them back to Gold/trading help if appropriate."
+            content: "You are GoldScope, a helpful AI trading copilot for XAU/USD. You can answer general greetings, code questions, general queries, and casual chat messages in a friendly, conversational way. If they ask a general question, answer it directly and professionally."
           },
           { role: "user", content: request.message }
         ]
