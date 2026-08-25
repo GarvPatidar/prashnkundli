@@ -1,5 +1,5 @@
-const getRequiredEnv = (key: string): string => {
-  const value = process.env[key];
+const getRequiredEnv = (key: string, fallback: string = ""): string => {
+  const value = process.env[key] || fallback;
 
   if (!value) {
     throw new Error(`Missing required environment variable: ${key}`);
@@ -14,7 +14,7 @@ const getBooleanEnv = (
 ): boolean => {
   const value = process.env[key];
 
-  if (value === undefined) {
+  if (value === undefined || value === "") {
     return defaultValue;
   }
 
@@ -31,19 +31,20 @@ export const env = {
 
   apiBaseUrl: getRequiredEnv(
     "NEXT_PUBLIC_API_BASE_URL",
+    "https://prashnkundli.onrender.com",
   ).replace(/\/+$/, ""),
 
   websocketUrl: getRequiredEnv(
     "NEXT_PUBLIC_WS_URL",
+    "wss://prashnkundli.onrender.com/market",
   ).replace(/\/+$/, ""),
-
 
   marketDataProvider:
     process.env.NEXT_PUBLIC_MARKET_DATA_PROVIDER ??
-    "Mock Provider",
+    "Twelve Data",
 
   enableMockData: getBooleanEnv(
     "NEXT_PUBLIC_ENABLE_MOCK_DATA",
-    true,
+    false, // <-- Isko false rakhein taaki real market data fetch ho
   ),
 } as const;
