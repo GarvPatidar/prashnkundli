@@ -60,12 +60,12 @@ const environmentSchema = z
     /*
      * MARKET DATA
      */
-    MARKET_PROVIDER: z
+   MARKET_PROVIDER: z
       .enum([
         "mock",
         "twelve-data",
       ])
-      .default("mock"),
+      .default("twelve-data"),
 
     TWELVE_DATA_API_KEY:
       optionalString,
