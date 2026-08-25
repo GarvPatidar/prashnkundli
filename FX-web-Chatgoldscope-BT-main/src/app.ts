@@ -54,6 +54,9 @@ export function buildApp(): FastifyInstance {
   /*
    * Core security / platform plugins.
    */
+ /*
+   * Core security / platform plugins.
+   */
   void app.register(
     helmet,
   );
@@ -61,11 +64,14 @@ export function buildApp(): FastifyInstance {
   void app.register(
     cors,
     {
-      origin:
-        env.FRONTEND_ORIGIN,
-
-      credentials:
-        true,
+      origin: [
+        "http://localhost:3000",
+        "https://goldscopee.vercel.app",
+        "https://shivam-sepia-delta.vercel.app",
+        ...(env.FRONTEND_ORIGIN ? [env.FRONTEND_ORIGIN] : []),
+      ],
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     },
   );
 
