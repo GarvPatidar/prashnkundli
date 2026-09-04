@@ -25,23 +25,10 @@ import type {
 } from "@/features/market/market.types";
 
 const REFRESH_INTERVAL_MS = 30_000;
+
 /**
  * Determines the active major trading session
  * using the user's current browser time.
- *
- * No additional market API is required.
- *
- * London:
- * 08:00 - 17:00 local London time
- *
- * New York:
- * 08:00 - 17:00 local New York time
- *
- * Tokyo:
- * 09:00 - 18:00 local Tokyo time
- *
- * Sydney:
- * 09:00 - 18:00 local Sydney time
  */
 function getTradingSession(): string {
   const now = new Date();
@@ -116,6 +103,30 @@ function getTradingSession(): string {
   }
 
   return "MARKET CLOSED";
+}
+
+// Helper component for Market Direction / Bias Badge
+function MarketBiasBadge() {
+  // You can derive this dynamically from snapshot or default to Bullish based on context
+  const bias = "BULLISH" as const; 
+
+  const styles = {
+    BULLISH: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    BEARISH: "bg-rose-50 text-rose-700 border-rose-200",
+    CONSOLIDATING: "bg-amber-50 text-amber-700 border-amber-200",
+  };
+
+  const labels = {
+    BULLISH: "🟢 Bullish Bias",
+    BEARISH: "🔴 Bearish Bias",
+    CONSOLIDATING: "🟡 Consolidating",
+  };
+
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${styles[bias]}`}>
+      {labels[bias]}
+    </span>
+  );
 }
 
 export function MarketStrip() {
@@ -255,14 +266,6 @@ export function MarketStrip() {
     };
   }, [loadSnapshot]);
 
-  /**
-   * Update the displayed session
-   * independently from the API refresh.
-   *
-   * This means the session can change
-   * from London -> New York without
-   * requiring another market API.
-   */
   useEffect(() => {
     const updateSession =
       () => {
@@ -375,6 +378,9 @@ export function MarketStrip() {
         </span>
       </div>
 
+      {/* Market Direction / Bias Badge */}
+      <MarketBiasBadge />
+
       {/* Live status */}
       <Badge tone="success">
         <Wifi
@@ -395,7 +401,7 @@ export function MarketStrip() {
       ) : null}
 
       {/* Provider */}
-            {error ? (
+      {error ? (
         <span className="w-full text-xs text-[var(--warning)]">
           Refresh failed. Showing
           the most recent available

@@ -41,3 +41,35 @@ export function clearStoredConversation(): void {
 
   window.localStorage.removeItem(CONVERSATION_STORAGE_KEY);
 }
+
+export const ALL_CONVERSATIONS_KEY = "goldscope_all_conversations";
+export function loadConversationById(id: string): Conversation | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(ALL_CONVERSATIONS_KEY);
+  if (!raw) return null;
+  try {
+    const list = JSON.parse(raw) as Conversation[];
+    const matched = list.find(
+      (c) => c.id === id || c.backendConversationId === id
+    );
+    if (matched) return matched;
+    return list[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveConversationList(conversation: Conversation): void {
+  if (typeof window === "undefined") return;
+  const raw = window.localStorage.getItem(ALL_CONVERSATIONS_KEY);
+  const list: Conversation[] = raw ? JSON.parse(raw) : [];
+  
+  const index = list.findIndex((c) => c.id === conversation.id);
+  if (index >= 0) {
+    list[index] = conversation;
+  } else {
+    list.unshift(conversation);
+  }
+  
+  window.localStorage.setItem(ALL_CONVERSATIONS_KEY, JSON.stringify(list));
+}
