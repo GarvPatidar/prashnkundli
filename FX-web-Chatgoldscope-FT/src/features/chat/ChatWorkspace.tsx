@@ -79,8 +79,8 @@ const ANALYSIS_STEPS = [
 ] as const;
 
 const ANALYSIS_STEP_INTERVAL_MS = 1_250;
-
 const MAX_ATTACHMENT_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGES = 3; // 👉 Max 3 images limit
 
 const SUPPORTED_ATTACHMENT_TYPES = new Set([
   "image/png",
@@ -130,7 +130,7 @@ function normalizeStoredConversation(
     messages: storedConversation.messages.map(
       (storedMessage) => ({
         ...storedMessage,
-        attachments: [],
+        attachments: storedMessage.attachments || [],
         status:
           storedMessage.status === "streaming"
             ? "failed"
@@ -174,18 +174,17 @@ export function ChatWorkspace() {
     }
 
     const storedConversation = loadStoredConversation();
-
-    if (!storedConversation) {
-      return createEmptyConversation();
-    }
+    if (!storedConversation) return createEmptyConversation();
 
     return normalizeStoredConversation(storedConversation);
   });
 
   const [message, setMessage] = useState("");
-  const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  // 👉 Single state ko Arrays mein convert kar diya gaya hai
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  
   const [isResponding, setIsResponding] = useState(false);
   const [analysisStepIndex, setAnalysisStepIndex] = useState(0);
 
@@ -195,37 +194,40 @@ export function ChatWorkspace() {
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
-
-    if (hour < 12) {
-      return "Good morning";
-    }
-
-    if (hour < 18) {
-      return "Good afternoon";
-    }
-
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
     return "Good evening";
   }, []);
 
-  const clearAttachment = useCallback(() => {
-    if (attachment?.previewUrl) {
-      URL.revokeObjectURL(attachment.previewUrl);
-    }
+  const clearAttachments = useCallback(() => {
+    attachments.forEach((att) => {
+      if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
+    });
 
-    setAttachment(null);
-    setAttachmentFile(null);
+    setAttachments([]);
+    setAttachmentFiles([]);
     setAttachmentError(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [attachment]);
+  }, [attachments]);
+
+  const removeAttachment = useCallback((indexToRemove: number) => {
+    setAttachments((prev) => {
+      const target = prev[indexToRemove];
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((_, i) => i !== indexToRemove);
+    });
+    setAttachmentFiles((prev) => prev.filter((_, i) => i !== indexToRemove));
+    setAttachmentError(null);
+  }, []);
 
   const handleNewChat = useCallback(() => {
     if (isResponding) return;
-    clearAttachment();
+    clearAttachments();
     setConversation(createEmptyConversation());
-  }, [isResponding, clearAttachment]);
+  }, [isResponding, clearAttachments]);
 
   const handleNewChatRef = useRef(handleNewChat);
   useEffect(() => {
@@ -234,11 +236,9 @@ export function ChatWorkspace() {
 
   useEffect(() => {
     if (!newChatParam) return;
-
     const timeoutId = window.setTimeout(() => {
       handleNewChatRef.current();
     }, 0);
-
     return () => window.clearTimeout(timeoutId);
   }, [newChatParam]);
 
@@ -255,7 +255,7 @@ export function ChatWorkspace() {
       ...conversation,
       messages: conversation.messages.map((chatMessage) => ({
         ...chatMessage,
-        attachments: [],
+        attachments: chatMessage.attachments || [],
         analysis:
           chatMessage.responseMode === "ANALYSIS"
             ? chatMessage.analysis
@@ -268,9 +268,7 @@ export function ChatWorkspace() {
   }, [conversation]);
 
   useEffect(() => {
-    if (!isResponding) {
-      return;
-    }
+    if (!isResponding) return;
 
     const intervalId = window.setInterval(() => {
       setAnalysisStepIndex((currentIndex) =>
@@ -292,13 +290,13 @@ export function ChatWorkspace() {
 
   useEffect(() => {
     return () => {
-      if (attachment?.previewUrl) {
-        URL.revokeObjectURL(attachment.previewUrl);
-      }
+      attachments.forEach((att) => {
+        if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
+      });
     };
-  }, [attachment]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Cleanup on unmount
 
-  // URL mein conversation ID hone par backend se chat fetch karne ke liye
   useEffect(() => {
     if (!conversationParam) return;
 
@@ -319,11 +317,18 @@ export function ChatWorkspace() {
             id: msg.id,
             conversationId: msg.conversationId,
             role: msg.role,
-            // Purane history messages ke liye status hamesha "completed" hona chahiye
             status: "completed", 
             content: msg.content,
             createdAt: msg.createdAt,
-            attachments: [],
+            // 👉 Yahan attachments ko properly map karke missing fields add kar di gayi hain
+            attachments: (msg.attachments || []).map(att => ({
+              id: att.id,
+              type: "image", // 👈 Yeh type required tha
+              fileName: att.fileName,
+              mimeType: att.mimeType,
+              size: att.size,
+              previewUrl: att.previewUrl || "", // 👈 Fallback for previewUrl
+            })),
             responseMode: "CONVERSATIONAL",
           })),
         };
@@ -341,51 +346,57 @@ export function ChatWorkspace() {
     };
   }, [conversationParam]);
 
-  const setSelectedAttachment = (file: File) => {
+  // 👉 Naya function jo array of files ko handle karta hai aur max limit check karta hai
+  const addAttachments = (files: File[]) => {
     setAttachmentError(null);
 
-    if (!SUPPORTED_ATTACHMENT_TYPES.has(file.type)) {
-      setAttachmentError("Please upload a PNG, JPG or WebP image.");
-      return false;
-    }
+    const validFiles = files.filter((file) => {
+      if (!SUPPORTED_ATTACHMENT_TYPES.has(file.type)) {
+        setAttachmentError("Please upload PNG, JPG or WebP images.");
+        return false;
+      }
+      if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        setAttachmentError("Each screenshot must be smaller than 8 MB.");
+        return false;
+      }
+      return true;
+    });
 
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      setAttachmentError("Screenshot must be smaller than 8 MB.");
-      return false;
-    }
+    if (validFiles.length === 0) return false;
 
-    if (attachment?.previewUrl) {
-      URL.revokeObjectURL(attachment.previewUrl);
-    }
+    setAttachments((prevAttachments) => {
+      const currentCount = prevAttachments.length;
+      const allowedToAdd = Math.max(0, MAX_IMAGES - currentCount);
+      const filesToAdd = validFiles.slice(0, allowedToAdd);
 
-    const previewUrl = URL.createObjectURL(file);
+      if (validFiles.length > allowedToAdd || currentCount + validFiles.length > MAX_IMAGES) {
+        setAttachmentError(`You can only upload up to ${MAX_IMAGES} images at a time.`);
+      }
 
-    setAttachmentFile(file);
-    setAttachment({
-      id: crypto.randomUUID(),
-      type: "image",
-      fileName: file.name,
-      previewUrl,
-      mimeType: file.type,
-      size: file.size,
+      const newAttachments = filesToAdd.map((file) => ({
+        id: crypto.randomUUID(),
+        type: "image" as const,
+        fileName: file.name,
+        previewUrl: URL.createObjectURL(file),
+        mimeType: file.type as "image/png" | "image/jpeg" | "image/webp",
+        size: file.size,
+      }));
+
+      setAttachmentFiles((prevFiles) => [...prevFiles, ...filesToAdd]);
+      return [...prevAttachments, ...newAttachments];
     });
 
     return true;
   };
 
-  const handleAttachmentChange = (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    const accepted = setSelectedAttachment(file);
-
-    if (!accepted) {
-      event.target.value = "";
+  const handleAttachmentChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    
+    addAttachments(files);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Reset file input
     }
   };
 
@@ -434,69 +445,54 @@ export function ChatWorkspace() {
     }));
   };
 
-  const handlePaste = (
-    event: ClipboardEvent<HTMLTextAreaElement>,
-  ) => {
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const clipboardItems = Array.from(event.clipboardData.items);
-    const imageItem = clipboardItems.find(
-      (item) =>
-        item.kind === "file" && item.type.startsWith("image/"),
+    const imageItems = clipboardItems.filter(
+      (item) => item.kind === "file" && item.type.startsWith("image/"),
     );
 
-    if (!imageItem) {
-      return;
-    }
-
-    const pastedFile = imageItem.getAsFile();
-
-    if (!pastedFile) {
-      return;
-    }
-
+    if (imageItems.length === 0) return;
     event.preventDefault();
 
-    const extension =
-      pastedFile.type === "image/jpeg"
-        ? "jpg"
-        : pastedFile.type === "image/webp"
-        ? "webp"
-        : "png";
+    const pastedFiles = imageItems.map(item => {
+      const file = item.getAsFile()!;
+      const extension =
+        file.type === "image/jpeg"
+          ? "jpg"
+          : file.type === "image/webp"
+          ? "webp"
+          : "png";
 
-    const fileName = `goldscope-screenshot-${Date.now()}.${extension}`;
-    const normalizedFile = new File([pastedFile], fileName, {
-      type: pastedFile.type,
-      lastModified: Date.now(),
+      return new File([file], `goldscope-screenshot-${Date.now()}.${extension}`, {
+        type: file.type,
+        lastModified: Date.now(),
+      });
     });
 
-    setSelectedAttachment(normalizedFile);
+    addAttachments(pastedFiles);
   };
 
   const handleSubmit = async () => {
     const trimmedMessage = message.trim();
 
-    if (
-      (!trimmedMessage && !attachmentFile) ||
-      isResponding
-    ) {
+    // 👉 Condition check updated for multiple files
+    if ((!trimmedMessage && attachmentFiles.length === 0) || isResponding) {
       return;
     }
 
-    const finalMessage =
-      trimmedMessage || "Please analyse this screenshot.";
+    const finalMessage = trimmedMessage || "Please analyse this screenshot.";
 
-    const currentAttachment = attachment;
-    const currentAttachmentFile = attachmentFile;
+    // Take snapshot of current state before clearing
+    const currentAttachments = [...attachments];
+    const currentAttachmentFiles = [...attachmentFiles];
 
     const userMessage = createUserMessage(
       conversation.id,
       finalMessage,
-      currentAttachment ? [currentAttachment] : [],
+      currentAttachments,
     );
 
-    const assistantPlaceholder = createAssistantPlaceholder(
-      conversation.id,
-    );
-
+    const assistantPlaceholder = createAssistantPlaceholder(conversation.id);
     setAnalysisStepIndex(0);
 
     setConversation((currentConversation) => ({
@@ -509,9 +505,10 @@ export function ChatWorkspace() {
       ],
     }));
 
+    // Clear UI state
     setMessage("");
-    setAttachment(null);
-    setAttachmentFile(null);
+    setAttachments([]);
+    setAttachmentFiles([]);
     setAttachmentError(null);
 
     if (fileInputRef.current) {
@@ -521,30 +518,28 @@ export function ChatWorkspace() {
     setIsResponding(true);
 
     try {
-      let uploadedAttachment: {
-        id: string;
-        fileName: string;
-        mimeType: "image/png" | "image/jpeg" | "image/webp";
-        size: number;
-      } | null = null;
+      // 👉 Upload all selected files concurrently using Promise.all
+      const uploadedAttachments = [];
 
-      if (currentAttachmentFile) {
-        const uploadResponse = await uploadChatAttachment(
-          currentAttachmentFile,
-        );
+      if (currentAttachmentFiles.length > 0) {
+        const uploadPromises = currentAttachmentFiles.map((file) => uploadChatAttachment(file));
+        const uploadResponses = await Promise.all(uploadPromises);
 
-        uploadedAttachment = {
-          id: uploadResponse.data.id,
-          fileName: uploadResponse.data.fileName,
-          mimeType: uploadResponse.data.mimeType,
-          size: uploadResponse.data.size,
-        };
+        for (const uploadResponse of uploadResponses) {
+          uploadedAttachments.push({
+            id: uploadResponse.data.id,
+            fileName: uploadResponse.data.fileName,
+            mimeType: uploadResponse.data.mimeType,
+            size: uploadResponse.data.size,
+          });
+        }
       }
 
+      // 👉 IMPORTANT: API request ab ek array bhejne ki koshish kar raha hai (`attachments`)
       const response = await sendChatMessage({
         conversationId: conversation.backendConversationId ?? null,
         message: finalMessage,
-        attachment: uploadedAttachment,
+        attachments: uploadedAttachments, 
       });
 
       updateAssistantMessage(
@@ -570,9 +565,7 @@ export function ChatWorkspace() {
     setMessage(prompt);
   };
 
-  const handleKeyDown = (
-    event: KeyboardEvent<HTMLTextAreaElement>,
-  ) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void handleSubmit();
@@ -582,29 +575,35 @@ export function ChatWorkspace() {
   const renderUserMessage = (chatMessage: ChatMessage) => {
     return (
       <div key={chatMessage.id} className="ml-auto max-w-[520px]">
-        {chatMessage.attachments.map((messageAttachment) => (
-          <div
-            key={messageAttachment.id}
-            className="relative mb-2 h-72 w-full overflow-hidden rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)]"
-          >
-            <Image
-              src={messageAttachment.previewUrl}
-              alt={messageAttachment.fileName}
-              fill
-              unoptimized
-              sizes="(max-width: 768px) 100vw, 520px"
-              className="object-contain"
-            />
-          </div>
-        ))}
-
-        <div className="rounded-2xl rounded-br-md bg-[var(--primary)] px-4 py-3 text-sm leading-6 text-white shadow-[var(--shadow-sm)]">
-          {chatMessage.content}
+        {/* Render all attached images for a message */}
+        <div className="flex flex-col gap-2">
+          {chatMessage.attachments.map((messageAttachment) => (
+            <div
+              key={messageAttachment.id}
+              className="relative h-72 w-full overflow-hidden rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)]"
+            >
+              <Image
+                src={messageAttachment.previewUrl}
+                alt={messageAttachment.fileName}
+                fill
+                unoptimized
+                sizes="(max-width: 768px) 100vw, 520px"
+                className="object-contain"
+              />
+            </div>
+          ))}
         </div>
+
+        {chatMessage.content && (
+          <div className="mt-2 rounded-2xl rounded-br-md bg-[var(--primary)] px-4 py-3 text-sm leading-6 text-white shadow-[var(--shadow-sm)]">
+            {chatMessage.content}
+          </div>
+        )}
       </div>
     );
   };
 
+  // ... [renderStreamingMessage, renderAnalysisMessage, renderConversationalMessage, renderFallbackMessage, renderMessage functions remain same]
   const renderStreamingMessage = (chatMessage: ChatMessage) => {
     return (
       <div key={chatMessage.id} className="max-w-2xl">
@@ -621,10 +620,7 @@ export function ChatWorkspace() {
   };
 
   const renderAnalysisMessage = (chatMessage: ChatMessage) => {
-    if (!chatMessage.analysis) {
-      return null;
-    }
-
+    if (!chatMessage.analysis) return null;
     return (
       <div key={chatMessage.id} className="max-w-4xl">
         <GoldScopeAnalysisCard analysis={chatMessage.analysis} />
@@ -643,7 +639,6 @@ export function ChatWorkspace() {
 
   const renderFallbackMessage = (chatMessage: ChatMessage) => {
     const isFailed = chatMessage.status === "failed";
-
     return (
       <div key={chatMessage.id} className="max-w-2xl">
         <div
@@ -661,29 +656,10 @@ export function ChatWorkspace() {
   };
 
   const renderMessage = (chatMessage: ChatMessage) => {
-    if (chatMessage.role === "user") {
-      return renderUserMessage(chatMessage);
-    }
-
-    if (chatMessage.status === "streaming") {
-      return renderStreamingMessage(chatMessage);
-    }
-
-    if (
-      chatMessage.status === "completed" &&
-      chatMessage.responseMode === "ANALYSIS" &&
-      chatMessage.analysis
-    ) {
-      return renderAnalysisMessage(chatMessage);
-    }
-
-    if (
-      chatMessage.status === "completed" &&
-      chatMessage.role === "assistant"
-    ) {
-      return renderConversationalMessage(chatMessage);
-    }
-
+    if (chatMessage.role === "user") return renderUserMessage(chatMessage);
+    if (chatMessage.status === "streaming") return renderStreamingMessage(chatMessage);
+    if (chatMessage.status === "completed" && chatMessage.responseMode === "ANALYSIS" && chatMessage.analysis) return renderAnalysisMessage(chatMessage);
+    if (chatMessage.status === "completed" && chatMessage.role === "assistant") return renderConversationalMessage(chatMessage);
     return renderFallbackMessage(chatMessage);
   };
 
@@ -692,21 +668,16 @@ export function ChatWorkspace() {
       <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8">
         {!hasUserMessages ? (
           <div className="mx-auto flex min-h-[calc(100vh-220px)] max-w-5xl flex-col justify-center">
+            {/* Same Welcome Screen logic */}
             <div className="mx-auto max-w-2xl text-center">
-              <p className="text-sm font-semibold text-[var(--primary)]">
-                {greeting}
-              </p>
-
+              <p className="text-sm font-semibold text-[var(--primary)]">{greeting}</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-[var(--text)] md:text-5xl">
                 What do you want to analyse?
               </h1>
-
               <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[var(--text-muted)]">
-                Ask GoldScope about Gold, understand the current market
-                or review an existing trade.
+                Ask GoldScope about Gold, understand the current market or review an existing trade.
               </p>
             </div>
-
             <div className="mx-auto mt-10 grid w-full max-w-3xl gap-4 md:grid-cols-2">
               {quickActions.map((action) => (
                 <QuickActionCard
@@ -724,7 +695,6 @@ export function ChatWorkspace() {
         ) : (
           <div className="mx-auto max-w-4xl space-y-6">
             {conversation.messages.map(renderMessage)}
-
             <div ref={messagesEndRef} aria-hidden="true" />
           </div>
         )}
@@ -732,28 +702,32 @@ export function ChatWorkspace() {
 
       <div className="border-t border-[var(--border)] bg-white/95 px-3 py-3 backdrop-blur-xl md:px-4 md:py-4">
         <div className="mx-auto max-w-4xl">
-          {attachment ? (
-            <div className="mb-3 max-w-sm">
-              <ChatAttachmentPreview
-                attachment={attachment}
-                onRemove={clearAttachment}
-              />
+          
+          {/* 👉 Multiple images preview container */}
+          {attachments.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {attachments.map((att, index) => (
+                <div key={att.id} className="w-32">
+                  <ChatAttachmentPreview
+                    attachment={att}
+                    onRemove={() => removeAttachment(index)}
+                  />
+                </div>
+              ))}
             </div>
-          ) : null}
+          )}
 
-          {attachmentError ? (
-            <p
-              role="alert"
-              className="mb-2 text-xs text-[var(--danger)]"
-            >
+          {attachmentError && (
+            <p role="alert" className="mb-2 text-xs text-[var(--danger)]">
               {attachmentError}
             </p>
-          ) : null}
+          )}
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/png,image/jpeg,image/webp"
+            multiple // 👉 Yahan multiple add ho gaya!
             onChange={handleAttachmentChange}
             className="hidden"
           />
@@ -762,7 +736,7 @@ export function ChatWorkspace() {
             <Button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isResponding}
+              disabled={isResponding || attachments.length >= MAX_IMAGES}
               className="size-11 min-h-11 shrink-0 px-0"
               aria-label="Attach trading screenshot"
             >
@@ -779,8 +753,8 @@ export function ChatWorkspace() {
               placeholder={
                 isResponding
                   ? "GoldScope is working on your response..."
-                  : attachment
-                  ? "Ask something about this screenshot..."
+                  : attachments.length > 0
+                  ? "Ask something about these screenshots..."
                   : "Ask GoldScope about Gold..."
               }
               className="min-h-11 flex-1 resize-none bg-transparent px-3 py-3 text-base leading-7 text-[var(--text)] outline-none placeholder:text-[var(--text-subtle)] disabled:cursor-not-allowed disabled:opacity-70"
@@ -790,20 +764,16 @@ export function ChatWorkspace() {
               type="button"
               onClick={() => void handleSubmit()}
               disabled={
-                (!message.trim() && !attachmentFile) || isResponding
+                (!message.trim() && attachmentFiles.length === 0) || isResponding
               }
               className="size-11 min-h-11 shrink-0 px-0"
-              aria-label={
-                isResponding ? "GoldScope is responding" : "Send message"
-              }
+              aria-label={isResponding ? "GoldScope is responding" : "Send message"}
             >
               <SendHorizontal size={18} aria-hidden="true" />
             </Button>
           </div>
-
           <p className="mt-2 text-center text-[11px] leading-5 text-[var(--text-subtle)]">
-            GoldScope provides market decision-support, not financial
-            advice. Verify live execution conditions and manage your own risk.
+            GoldScope provides market decision-support, not financial advice. Verify live execution conditions and manage your own risk.
           </p>
         </div>
       </div>

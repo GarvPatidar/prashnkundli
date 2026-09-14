@@ -8,269 +8,153 @@ import type {
   ResponseMode,
 } from "./types/chat.types";
 
-const rawApiBaseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL;
+const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 if (!rawApiBaseUrl) {
-  throw new Error(
-    "NEXT_PUBLIC_API_BASE_URL is not configured.",
-  );
+  throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
 }
 
 const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "");
 
-
 export interface UploadChatAttachmentResponse {
   success: true;
-
   data: {
     id: string;
-
     fileName: string;
-
-    mimeType:
-      | "image/png"
-      | "image/jpeg"
-      | "image/webp";
-
+    mimeType: "image/png" | "image/jpeg" | "image/webp";
     size: number;
   };
 }
 
 export interface SendChatRequest {
-  conversationId?:
-    | string
-    | null;
-
+  conversationId?: string | null;
   message: string;
-
-  attachment?:
-    | {
-        id: string;
-
-        fileName: string;
-
-        mimeType:
-          | "image/png"
-          | "image/jpeg"
-          | "image/webp";
-
-        size: number;
-      }
-    | null;
+  
+  // 👉 Yahan attachment ko attachments array banaya gaya hai
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    mimeType: "image/png" | "image/jpeg" | "image/webp";
+    size: number;
+  }> | null;
 }
 
 export interface SendChatResponse {
   success: true;
-
   data: {
     conversationId: string;
-
     userMessageId?: string;
-
     assistantMessageId?: string;
-
-    marketTimestamp?:
-      | string
-      | null;
-
-    responseMode:
-      ResponseMode;
-
+    marketTimestamp?: string | null;
+    responseMode: ResponseMode;
     message: string;
-
-    analysis:
-      GoldScopeAnalysis;
+    analysis: GoldScopeAnalysis;
   };
 }
 
 export interface BackendConversationMessage {
   id: string;
-
   conversationId: string;
-
-  role:
-    | "user"
-    | "assistant"
-    | "system";
-
-  status:
-    | "pending"
-    | "streaming"
-    | "completed"
-    | "failed";
-
+  role: "user" | "assistant" | "system";
+  status: "pending" | "streaming" | "completed" | "failed";
   content: string;
-
+  
+  // 👉 Yahan attachments field add kiya gaya hai taaki line 323 ka error fix ho jaye
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    previewUrl?: string;
+  }> | null;
+  
   createdAt: string;
 }
 
 export interface BackendConversation {
   id: string;
-
   title: string;
-
   symbol: string;
-
-  messages:
-    BackendConversationMessage[];
-
+  messages: BackendConversationMessage[];
   createdAt: string;
-
   updatedAt: string;
 }
 
 interface GetConversationsResponse {
   success: true;
-
-  data:
-    BackendConversation[];
+  data: BackendConversation[];
 }
 
 interface GetConversationResponse {
   success: true;
-
-  data:
-    BackendConversation;
+  data: BackendConversation;
 }
 
 interface ChatApiErrorResponse {
   success: false;
-
   error?: {
     code?: string;
-
     message?: string;
   };
 }
 
-export class ChatApiError
-  extends Error {
+export class ChatApiError extends Error {
   constructor(
     message: string,
-
-    public readonly code:
-      string,
-
-    public readonly status:
-      number,
+    public readonly code: string,
+    public readonly status: number,
   ) {
     super(message);
-
-    this.name =
-      "ChatApiError";
+    this.name = "ChatApiError";
   }
 }
 
-async function readApiPayload<
-  TSuccess,
->(
-  response:
-    Response,
-): Promise<
-  TSuccess |
-  ChatApiErrorResponse
-> {
-  return (
-    await response.json()
-  ) as
-    | TSuccess
-    | ChatApiErrorResponse;
+async function readApiPayload<TSuccess>(
+  response: Response,
+): Promise<TSuccess | ChatApiErrorResponse> {
+  return (await response.json()) as TSuccess | ChatApiErrorResponse;
 }
 
 function throwApiError(
-  payload:
-    ChatApiErrorResponse,
-
-  status:
-    number,
-
-  fallbackMessage:
-    string,
-
-  fallbackCode:
-    string,
+  payload: ChatApiErrorResponse,
+  status: number,
+  fallbackMessage: string,
+  fallbackCode: string,
 ): never {
   throw new ChatApiError(
-    payload.error?.message ??
-      fallbackMessage,
-
-    payload.error?.code ??
-      fallbackCode,
-
+    payload.error?.message ?? fallbackMessage,
+    payload.error?.code ?? fallbackCode,
     status,
   );
 }
 
 export async function uploadChatAttachment(
-  file:
-    File,
-): Promise<
-  UploadChatAttachmentResponse
-> {
-  const formData =
-    new FormData();
+  file: File,
+): Promise<UploadChatAttachmentResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
 
-  formData.append(
-    "file",
-    file,
-  );
-
-  let response:
-    Response;
+  let response: Response;
 
   try {
-    response =
-      await authenticatedFetch(
-        `${API_BASE_URL}/v1/attachments`,
-        {
-          method:
-            "POST",
-
-          /*
-           * Do not manually set Content-Type.
-           *
-           * The browser must create the multipart
-           * boundary automatically.
-           */
-          body:
-            formData,
-        },
-      );
+    response = await authenticatedFetch(`${API_BASE_URL}/v1/attachments`, {
+      method: "POST",
+      body: formData,
+    });
   } catch (error) {
-    if (
-      error instanceof
-      AuthApiError
-    ) {
-      throw new ChatApiError(
-        error.message,
-        error.code,
-        error.status,
-      );
+    if (error instanceof AuthApiError) {
+      throw new ChatApiError(error.message, error.code, error.status);
     }
-
     throw error;
   }
 
-  const payload =
-    await readApiPayload<
-      UploadChatAttachmentResponse
-    >(
-      response,
-    );
+  const payload = await readApiPayload<UploadChatAttachmentResponse>(response);
 
-  if (
-    !response.ok ||
-    !payload.success
-  ) {
+  if (!response.ok || !payload.success) {
     throwApiError(
-      payload as
-        ChatApiErrorResponse,
-
+      payload as ChatApiErrorResponse,
       response.status,
-
       "The screenshot could not be uploaded.",
-
       "ATTACHMENT_UPLOAD_FAILED",
     );
   }
@@ -279,79 +163,38 @@ export async function uploadChatAttachment(
 }
 
 export async function sendChatMessage(
-  input:
-    SendChatRequest,
-): Promise<
-  SendChatResponse
-> {
-  let response:
-    Response;
+  input: SendChatRequest,
+): Promise<SendChatResponse> {
+  let response: Response;
 
   try {
-    response =
-      await authenticatedFetch(
-        `${API_BASE_URL}/v1/chat`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            Accept:
-              "application/json",
-
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify({
-              conversationId:
-                input.conversationId ??
-                null,
-
-              message:
-                input.message,
-
-              attachment:
-                input.attachment ??
-                null,
-            }),
-        },
-      );
+    response = await authenticatedFetch(`${API_BASE_URL}/v1/chat`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: input.conversationId ?? null,
+        message: input.message,
+        // 👉 Yahan request mein attachment ki jagah attachments array bhej rahe hain
+        attachments: input.attachments ?? [], 
+      }),
+    });
   } catch (error) {
-    if (
-      error instanceof
-      AuthApiError
-    ) {
-      throw new ChatApiError(
-        error.message,
-        error.code,
-        error.status,
-      );
+    if (error instanceof AuthApiError) {
+      throw new ChatApiError(error.message, error.code, error.status);
     }
-
     throw error;
   }
 
-  const payload =
-    await readApiPayload<
-      SendChatResponse
-    >(
-      response,
-    );
+  const payload = await readApiPayload<SendChatResponse>(response);
 
-  if (
-    !response.ok ||
-    !payload.success
-  ) {
+  if (!response.ok || !payload.success) {
     throwApiError(
-      payload as
-        ChatApiErrorResponse,
-
+      payload as ChatApiErrorResponse,
       response.status,
-
       "GoldScope could not analyse this request.",
-
       "CHAT_REQUEST_FAILED",
     );
   }
@@ -360,67 +203,33 @@ export async function sendChatMessage(
 }
 
 export async function getConversations(
-  signal?:
-    AbortSignal,
-): Promise<
-  BackendConversation[]
-> {
-  let response:
-    Response;
+  signal?: AbortSignal,
+): Promise<BackendConversation[]> {
+  let response: Response;
 
   try {
-    response =
-      await authenticatedFetch(
-        `${API_BASE_URL}/v1/conversations`,
-        {
-          method:
-            "GET",
-
-          headers: {
-            Accept:
-              "application/json",
-          },
-
-          cache:
-            "no-store",
-
-          signal,
-        },
-      );
+    response = await authenticatedFetch(`${API_BASE_URL}/v1/conversations`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
+      signal,
+    });
   } catch (error) {
-    if (
-      error instanceof
-      AuthApiError
-    ) {
-      throw new ChatApiError(
-        error.message,
-        error.code,
-        error.status,
-      );
+    if (error instanceof AuthApiError) {
+      throw new ChatApiError(error.message, error.code, error.status);
     }
-
     throw error;
   }
 
-  const payload =
-    await readApiPayload<
-      GetConversationsResponse
-    >(
-      response,
-    );
+  const payload = await readApiPayload<GetConversationsResponse>(response);
 
-  if (
-    !response.ok ||
-    !payload.success
-  ) {
+  if (!response.ok || !payload.success) {
     throwApiError(
-      payload as
-        ChatApiErrorResponse,
-
+      payload as ChatApiErrorResponse,
       response.status,
-
       "Conversation history could not be loaded.",
-
       "CONVERSATIONS_FETCH_FAILED",
     );
   }
@@ -429,67 +238,35 @@ export async function getConversations(
 }
 
 export async function getConversation(
-  conversationId:
-    string,
-): Promise<
-  BackendConversation
-> {
-  let response:
-    Response;
+  conversationId: string,
+): Promise<BackendConversation> {
+  let response: Response;
 
   try {
-    response =
-      await authenticatedFetch(
-        `${API_BASE_URL}/v1/conversations/${encodeURIComponent(
-          conversationId,
-        )}`,
-        {
-          method:
-            "GET",
-
-          headers: {
-            Accept:
-              "application/json",
-          },
-
-          cache:
-            "no-store",
+    response = await authenticatedFetch(
+      `${API_BASE_URL}/v1/conversations/${encodeURIComponent(conversationId)}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
         },
-      );
+        cache: "no-store",
+      },
+    );
   } catch (error) {
-    if (
-      error instanceof
-      AuthApiError
-    ) {
-      throw new ChatApiError(
-        error.message,
-        error.code,
-        error.status,
-      );
+    if (error instanceof AuthApiError) {
+      throw new ChatApiError(error.message, error.code, error.status);
     }
-
     throw error;
   }
 
-  const payload =
-    await readApiPayload<
-      GetConversationResponse
-    >(
-      response,
-    );
+  const payload = await readApiPayload<GetConversationResponse>(response);
 
-  if (
-    !response.ok ||
-    !payload.success
-  ) {
+  if (!response.ok || !payload.success) {
     throwApiError(
-      payload as
-        ChatApiErrorResponse,
-
+      payload as ChatApiErrorResponse,
       response.status,
-
       "Conversation could not be loaded.",
-
       "CONVERSATION_FETCH_FAILED",
     );
   }
@@ -498,57 +275,35 @@ export async function getConversation(
 }
 
 export async function deleteConversation(
-  conversationId:
-    string,
+  conversationId: string,
 ): Promise<void> {
-  let response:
-    Response;
+  let response: Response;
 
   try {
-    response =
-      await authenticatedFetch(
-        `${API_BASE_URL}/v1/conversations/${encodeURIComponent(
-          conversationId,
-        )}`,
-        {
-          method:
-            "DELETE",
-
-          headers: {
-            Accept:
-              "application/json",
-          },
+    response = await authenticatedFetch(
+      `${API_BASE_URL}/v1/conversations/${encodeURIComponent(conversationId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
         },
-      );
+      },
+    );
   } catch (error) {
-    if (
-      error instanceof
-      AuthApiError
-    ) {
-      throw new ChatApiError(
-        error.message,
-        error.code,
-        error.status,
-      );
+    if (error instanceof AuthApiError) {
+      throw new ChatApiError(error.message, error.code, error.status);
     }
-
     throw error;
   }
 
-  if (
-    response.status ===
-    204
-  ) {
+  if (response.status === 204) {
     return;
   }
 
-  let payload:
-    ChatApiErrorResponse;
+  let payload: ChatApiErrorResponse;
 
   try {
-    payload =
-      (await response.json()) as
-        ChatApiErrorResponse;
+    payload = (await response.json()) as ChatApiErrorResponse;
   } catch {
     throw new ChatApiError(
       "Conversation could not be deleted.",
@@ -559,11 +314,8 @@ export async function deleteConversation(
 
   throwApiError(
     payload,
-
     response.status,
-
     "Conversation could not be deleted.",
-
     "CONVERSATION_DELETE_FAILED",
   );
 }
