@@ -66,6 +66,7 @@ export function buildApp(): FastifyInstance {
     {
       origin: [
         "http://localhost:3000",
+        "http://localhost:3001",
         "https://goldscopee.vercel.app",
         "https://shivam-sepia-delta.vercel.app",
         ...(env.FRONTEND_ORIGIN ? [env.FRONTEND_ORIGIN] : []),
@@ -102,7 +103,7 @@ export function buildApp(): FastifyInstance {
     {
       limits: {
         files:
-          1,
+          3,
 
         fileSize:
           env.MAX_SCREENSHOT_SIZE_MB *

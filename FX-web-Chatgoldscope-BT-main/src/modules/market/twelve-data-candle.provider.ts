@@ -144,11 +144,7 @@ function normalizeBaseUrl(
 function validateLimit(
   limit: number,
 ): void {
-  if (
-    !Number.isInteger(limit) ||
-    limit < 2 ||
-    limit > 5_000
-  ) {
+  if (!Number.isInteger(limit) || limit < 2 || limit > 5_000) {
     throw new TwelveDataCandleProviderError(
       "Candle limit must be an integer between 2 and 5000.",
       "INVALID_LIMIT",
