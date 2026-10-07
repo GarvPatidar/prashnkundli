@@ -26,6 +26,14 @@ import {
   aiProvider,
 } from "./ai.factory.js";
 
+import {
+  isTradeIdeaRequest,
+} from "../communication/communication.service.js";
+
+import type {
+  TradeScenario,
+} from "../analysis/trade-scenarios.js";
+
 import type {
   AiImageAttachment,
 } from "./ai.provider.js";
@@ -279,6 +287,134 @@ function buildConversationalMessage(
     case "MARKET_ANALYSIS":
       return analysis.marketCondition;
   }
+}
+
+function formatPrice(
+  value: number,
+): string {
+  return value.toFixed(2);
+}
+
+function formatRiskReward(
+  values: number[],
+): string {
+  return values
+    .map(
+      (value) =>
+        `1:${value.toFixed(1)}`,
+    )
+    .join(" / ");
+}
+
+function formatScenario(
+  scenario: TradeScenario,
+  index: number,
+): string {
+  const label =
+    scenario.alignedWithBias
+      ? "with the current bias"
+      : "counter-trend, lower probability";
+
+  return [
+    `Plan ${index + 1}: ${scenario.title} (${label})`,
+    `When: ${scenario.condition}`,
+    `Entry ${formatPrice(scenario.entry)} | Stop loss ${formatPrice(scenario.stopLoss)} | Targets ${scenario.targets.map(formatPrice).join(" / ")}`,
+    `Risk ${scenario.riskPoints.toFixed(2)} points | Reward-to-risk ${formatRiskReward(scenario.riskReward)}`,
+    `Invalid if: ${scenario.invalidation}`,
+  ].join("\n");
+}
+
+function titleCase(
+  value: string,
+): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase() +
+        word.slice(1),
+    )
+    .join(" ");
+}
+
+/*
+ * Trade-idea answers are assembled from the backend trade
+ * scenarios, not from model prose, so every entry, stop and
+ * target is guaranteed to be a supplied number and always
+ * reaches the trader.
+ *
+ * Returns null when no usable plan exists so the caller can
+ * fall back to the normal conversational message.
+ */
+function buildTradeIdeaMessage(
+  prepared:
+    PreparedAiAnalysis,
+): string | null {
+  const market =
+    prepared.context.market;
+
+  const set =
+    market?.tradeScenarios;
+
+  if (
+    !market ||
+    !set ||
+    !set.available ||
+    set.scenarios.length === 0
+  ) {
+    return null;
+  }
+
+  const { decisionState, marketConfidence, riskScore } =
+    prepared.metadata;
+
+  const confidenceText =
+    marketConfidence !== null
+      ? ` (confidence ${Math.round(marketConfidence)}%)`
+      : "";
+
+  const lines: string[] = [
+    `Current bias: ${titleCase(decisionState)}${confidenceText}. Price now ${formatPrice(set.referencePrice)}.`,
+    "Short answer: do not chase an entry at the current price. Both plans below need price to reach the level and confirm first.",
+    "",
+    ...set.scenarios.flatMap(
+      (scenario, index) => [
+        formatScenario(
+          scenario,
+          index,
+        ),
+        "",
+      ],
+    ),
+  ];
+
+  if (
+    decisionState === "AVOID" ||
+    (riskScore !== null &&
+      riskScore >= 60)
+  ) {
+    lines.push(
+      "Risk conditions are elevated right now, so treat these as reference levels, not a signal to enter.",
+      "",
+    );
+  }
+
+  if (
+    !prepared.context.news
+      .calendarConnected
+  ) {
+    lines.push(
+      "The economic calendar is not connected yet, so check CPI, NFP and Fed events yourself before trading.",
+      "",
+    );
+  }
+
+  lines.push(
+    "These are conditional example plans from market structure, not personal advice. Set your position size from the entry-to-stop distance and your own risk using the Risk Calculator.",
+  );
+
+  return lines.join("\n");
 }
 
 function buildDegradedMessage(
@@ -596,6 +732,20 @@ export class AiResponseService {
       }
     }
 
+    /*
+     * Without a screenshot or supplied position there is nothing
+     * to say about a position, so do not show a note about it.
+     */
+    if (
+      !input.request.attachment &&
+      !input.request.position
+    ) {
+      response = {
+        ...response,
+        traderNote: null,
+      };
+    }
+
     const responseMode =
       resolveResponseMode(
         prepared,
@@ -612,7 +762,16 @@ export class AiResponseService {
         : responseMode ===
             "ANALYSIS"
           ? response.summary
-          : buildConversationalMessage(
+          : (!input.request.position &&
+              !input.request.attachment &&
+              isTradeIdeaRequest(
+                input.request.message,
+              )
+                ? buildTradeIdeaMessage(
+                    prepared,
+                  )
+                : null) ??
+            buildConversationalMessage(
               analysis,
               prepared,
             );

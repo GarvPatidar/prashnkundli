@@ -16,6 +16,13 @@ const REVEAL_INTERVAL_MS =
 const CHARACTERS_PER_TICK =
   3;
 
+/*
+ * Long answers (trade plans) must not take more than
+ * about MAX_REVEAL_TICKS * REVEAL_INTERVAL_MS to appear.
+ */
+const MAX_REVEAL_TICKS =
+  150;
+
 export function GoldScopeChatResponse({
   content,
 }: GoldScopeChatResponseProps) {
@@ -43,7 +50,13 @@ export function GoldScopeChatResponse({
               const nextCount =
                 Math.min(
                   currentCount +
-                    CHARACTERS_PER_TICK,
+                    Math.max(
+                      CHARACTERS_PER_TICK,
+                      Math.ceil(
+                        safeContent.length /
+                          MAX_REVEAL_TICKS,
+                      ),
+                    ),
                   safeContent.length,
                 );
 
@@ -98,7 +111,7 @@ export function GoldScopeChatResponse({
 
   return (
     <div className="max-w-2xl">
-      <div className="text-[15px] leading-7 text-[var(--text-secondary)]">
+      <div className="whitespace-pre-line text-[15px] leading-7 text-[var(--text-secondary)]">
         {visibleContent}
 
         {!isComplete ? (

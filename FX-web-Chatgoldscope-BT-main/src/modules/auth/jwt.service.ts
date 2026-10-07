@@ -40,7 +40,19 @@ export class JwtServiceError extends Error {
 }
 
 function getAccessTokenSecret(): Uint8Array {
-  const secret = env.JWT_ACCESS_SECRET || "default_jwt_access_secret_key_32_characters_long";
+  const secret = env.JWT_ACCESS_SECRET;
+
+  /*
+   * Never fall back to a built-in secret: anyone could
+   * then forge access tokens.
+   */
+  if (!secret || secret.length < 32) {
+    throw new JwtServiceError(
+      "JWT_ACCESS_SECRET must be configured (min 32 characters).",
+      "TOKEN_CONFIGURATION_ERROR",
+      500,
+    );
+  }
 
   return new TextEncoder().encode(secret);
 }

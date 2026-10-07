@@ -8,6 +8,8 @@ export interface CreateUserInput {
   email: string | null;
   passwordHash: string;
   whatsappConsent: boolean;
+  /** Create the account already verified (dev / mock OTP). */
+  autoActivate?: boolean;
 }
 
 export interface CreateOtpInput {
@@ -62,7 +64,13 @@ async createUser(input: CreateUserInput) {
       email: input.email,
       passwordHash: input.passwordHash,
       whatsappConsent: input.whatsappConsent,
-      status: "PENDING_VERIFICATION",
+      status: input.autoActivate
+        ? "ACTIVE"
+        : "PENDING_VERIFICATION",
+
+      ...(input.autoActivate
+        ? { phoneVerifiedAt: new Date() }
+        : {}),
 
       profile: {
         create: {

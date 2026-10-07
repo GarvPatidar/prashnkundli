@@ -70,6 +70,16 @@ const environmentSchema = z
     TWELVE_DATA_API_KEY:
       optionalString,
 
+    /*
+     * Your Twelve Data plan's credits per minute minus a safety
+     * margin. Free plan = 8 -> use 7. Grow 55+ -> e.g. 50.
+     */
+    TWELVE_DATA_CREDITS_PER_MINUTE: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(7),
+
     TWELVE_DATA_BASE_URL: z
       .string()
       .url()
@@ -188,6 +198,25 @@ const environmentSchema = z
       optionalString,
 
     /*
+     * ACCOUNT ACTIVATION / DEPLOYMENT
+     *
+     * AUTO_ACTIVATE_USERS: when unset it defaults to true only
+     * while OTP_PROVIDER=mock. Set it to "false" in production
+     * so new accounts must verify their phone.
+     */
+    AUTO_ACTIVATE_USERS: z
+      .enum(["true", "false"])
+      .optional(),
+
+    /* Set to "true" behind Render / Vercel / nginx proxies. */
+    TRUST_PROXY: z
+      .enum(["true", "false"])
+      .default("false"),
+
+    /* Extra allowed browser origins, comma separated. */
+    CORS_ORIGINS: optionalString,
+
+    /*
      * RATE LIMIT
      */
     RATE_LIMIT_MAX_REQUESTS:
@@ -220,8 +249,50 @@ if (!parsedEnvironment.success) {
   );
 }
 
-export const env =
+const parsedData =
   parsedEnvironment.data;
+
+if (parsedData.NODE_ENV === "production") {
+  const weakSecrets = [
+    ["JWT_ACCESS_SECRET", parsedData.JWT_ACCESS_SECRET],
+  ].filter(
+    ([, value]) =>
+      !value || String(value).length < 32,
+  );
+
+  if (weakSecrets.length > 0) {
+    throw new Error(
+      `Production requires strong secrets (min 32 chars): ${weakSecrets
+        .map(([name]) => name)
+        .join(", ")}`,
+    );
+  }
+
+  if (parsedData.OTP_PROVIDER === "mock") {
+    console.warn(
+      "[config] OTP_PROVIDER=mock in production. Set a real OTP provider and AUTO_ACTIVATE_USERS=false.",
+    );
+  }
+}
+
+export const env = {
+  ...parsedData,
+
+  AUTO_ACTIVATE_USERS:
+    parsedData.AUTO_ACTIVATE_USERS !== undefined
+      ? parsedData.AUTO_ACTIVATE_USERS === "true"
+      : parsedData.OTP_PROVIDER === "mock",
+
+  TRUST_PROXY:
+    parsedData.TRUST_PROXY === "true",
+
+  CORS_ORIGINS_LIST: (
+    parsedData.CORS_ORIGINS ?? ""
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+};
 
 export type Environment =
   typeof env;

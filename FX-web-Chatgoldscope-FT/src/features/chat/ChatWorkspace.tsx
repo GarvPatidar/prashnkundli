@@ -99,11 +99,11 @@ const quickActions = [
   },
   {
     icon: TrendingUp,
-    title: "Review my trade",
-    description: "Review your position, entry, stop loss, target and current risk.",
-    meta: "Position · Risk · Invalidation",
+    title: "Buy or sell?",
+    description: "See which side the market favours, with entry, stop loss and targets.",
+    meta: "Bias · Entry · Stop · Targets",
     tone: "success" as const,
-    prompt: "I want to review my current XAU/USD trade.",
+    prompt: "Should I buy or sell gold right now?",
   },
 ] as const;
 

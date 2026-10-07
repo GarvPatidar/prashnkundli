@@ -243,6 +243,107 @@ function isPositionReviewMessage(
   );
 }
 
+/*
+ * A trade-idea request asks for a NEW setup (entry, stop loss,
+ * targets, "should I buy now") and does not describe a trade the
+ * trader already has. These must not be routed to POSITION_REVIEW,
+ * otherwise the reply is built from the position fields and the
+ * trade plan is never shown.
+ */
+const TRADE_IDEA_PATTERNS = [
+  "trade idea",
+  "trade setup",
+  "give me a trade",
+  "give me a setup",
+  "any setup",
+  "entry and stop",
+  "entry stop",
+  "entry sl",
+  "entry point",
+  "stop loss",
+  "stoploss",
+  "targets",
+  "take profit",
+  "sl and tp",
+  "sl tp",
+  "should i buy",
+  "should i sell",
+  "buy now",
+  "sell now",
+  "buy or sell",
+  "long or short",
+  "buy karu",
+  "buy karun",
+  "buy kru",
+  "sell karu",
+  "sell karun",
+  "sell kru",
+  "kya lena",
+  "entry batao",
+  "setup batao",
+] as const;
+
+const EXISTING_POSITION_PHRASES = [
+  "my trade",
+  "my position",
+  "my buy",
+  "my sell",
+  "my sl",
+  "my tp",
+  "my stop",
+  "i bought",
+  "i sold",
+  "i have",
+  "i am in",
+  "i entered",
+  "open trade",
+  "open position",
+  "current trade",
+  "current position",
+  "break even",
+  "move sl",
+] as const;
+
+const EXISTING_POSITION_WORDS =
+  /\b(already|maine|mera|meri|loss|profit|hold|exit|close|cut|breakeven|trail|trailing|partial)\b/;
+
+export function isTradeIdeaRequest(
+  rawMessage: string,
+): boolean {
+  const message =
+    normalizeMessage(
+      rawMessage,
+    );
+
+  /*
+   * "stop loss" and "take profit" are trade-plan vocabulary, not
+   * evidence of an open trade, so remove them before looking for
+   * existing-position wording ("loss", "profit").
+   */
+  const withoutLevelTerms =
+    message.replace(
+      /\b(stop loss|stoploss|take profit)\b/g,
+      " ",
+    );
+
+  if (
+    containsAny(
+      withoutLevelTerms,
+      EXISTING_POSITION_PHRASES,
+    ) ||
+    EXISTING_POSITION_WORDS.test(
+      withoutLevelTerms,
+    )
+  ) {
+    return false;
+  }
+
+  return containsAny(
+    message,
+    TRADE_IDEA_PATTERNS,
+  );
+}
+
 function isEducationMessage(
   message: string,
 ): boolean {
@@ -263,6 +364,19 @@ export function determineCommunicationMode(
     return "POSITION_REVIEW";
   }
 
+  /*
+   * A request for a new trade idea (no position described, no
+   * screenshot) is a market question, not a position review.
+   */
+  if (
+    !request.attachment &&
+    isTradeIdeaRequest(
+      request.message,
+    )
+  ) {
+    return "MARKET_ANALYSIS";
+  }
+
   const message =
     normalizeMessage(
       request.message,
@@ -279,12 +393,28 @@ export function determineCommunicationMode(
    * are primarily about an existing position,
    * even though they contain "why".
    */
+  /*
+   * GoldScope has no trading-account connection, so a
+   * position-style question without a supplied position or a
+   * screenshot cannot be reviewed as a position. It is answered
+   * as a normal market question instead.
+   */
   if (
+    request.attachment &&
     isPositionReviewMessage(
       message,
     )
   ) {
     return "POSITION_REVIEW";
+  }
+
+  if (
+    !request.attachment &&
+    isPositionReviewMessage(
+      message,
+    )
+  ) {
+    return "MARKET_ANALYSIS";
   }
 
   if (
