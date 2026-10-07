@@ -1,5 +1,10 @@
 import { authRepository } from "./auth.repository.js";
 import { verifyPassword } from "./password.js";
+import {
+  PhoneValidationError,
+  normalizeCountryCode,
+  normalizePhone,
+} from "./phone.js";
 import { refreshTokenService } from "./refresh-token.service.js";
 
 export interface LoginInput {
@@ -51,65 +56,51 @@ export class LoginServiceError extends Error {
   }
 }
 
-function normalizeCountryCode(
-  countryCode?: string,
-): string {
-  const rawCountryCode = countryCode?.trim() || "+91";
-  const digits = rawCountryCode.replace(/\D/g, "");
+function normalizeLoginPhone(
+  countryCodeInput: string | undefined,
+): { countryCode: string; normalize: (phone: string) => string } {
+  try {
+    const countryCode =
+      normalizeCountryCode(countryCodeInput);
 
-  if (!digits || digits.length > 4) {
-    throw new LoginServiceError(
-      "Invalid country code.",
-      "INVALID_PHONE",
-      400,
-    );
+    return {
+      countryCode,
+      normalize: (phone: string) =>
+        normalizePhone(countryCode, phone),
+    };
+  } catch (error) {
+    if (error instanceof PhoneValidationError) {
+      throw new LoginServiceError(
+        error.message,
+        "INVALID_PHONE",
+        400,
+      );
+    }
+
+    throw error;
   }
-
-  return `+${digits}`;
-}
-
-function normalizePhone(
-  countryCode: string,
-  phone: string,
-): string {
-  const countryCodeDigits = countryCode.replace(/\D/g, "");
-  let phoneDigits = phone.replace(/\D/g, "");
-
-  phoneDigits = phoneDigits.replace(/^0+/, "");
-
-  if (
-    phoneDigits.startsWith(countryCodeDigits) &&
-    phoneDigits.length > 10
-  ) {
-    phoneDigits = phoneDigits.slice(countryCodeDigits.length);
-  }
-
-  const completePhone = countryCodeDigits + phoneDigits;
-
-  if (
-    completePhone.length < 8 ||
-    completePhone.length > 15
-  ) {
-    throw new LoginServiceError(
-      "Invalid mobile number.",
-      "INVALID_PHONE",
-      400,
-    );
-  }
-
-  return completePhone;
 }
 
 export class LoginService {
   async login(input: LoginInput): Promise<LoginResult> {
-    const countryCode = normalizeCountryCode(
-      input.countryCode,
-    );
+    const normalizer =
+      normalizeLoginPhone(input.countryCode);
 
-    const phone = normalizePhone(
-      countryCode,
-      input.phone,
-    );
+    let phone: string;
+
+    try {
+      phone = normalizer.normalize(input.phone);
+    } catch (error) {
+      if (error instanceof PhoneValidationError) {
+        throw new LoginServiceError(
+          error.message,
+          "INVALID_PHONE",
+          400,
+        );
+      }
+
+      throw error;
+    }
 
     const user =
       await authRepository.findUserByPhone(phone);

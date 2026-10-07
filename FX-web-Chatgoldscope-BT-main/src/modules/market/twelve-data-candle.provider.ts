@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import type { Candle } from "../indicators/indicator.types.js";
+
+import {
+  isRateLimitMessage,
+  twelveDataBudget,
+} from "./twelve-data-budget.js";
 import type {
   CandleProvider,
   GetCandlesInput,
@@ -19,10 +24,10 @@ const CACHE_TTL_MS: Record<
   MarketTimeframe,
   number
 > = {
-  M15: 30_000,
-  H1: 60_000,
-  H4: 120_000,
-  D1: 300_000,
+  M15: 45_000,
+  H1: 3 * 60_000,
+  H4: 10 * 60_000,
+  D1: 30 * 60_000,
 };
 
 /*
@@ -36,10 +41,10 @@ const MAX_STALE_AGE_MS: Record<
   MarketTimeframe,
   number
 > = {
-  M15: 120_000,
-  H1: 300_000,
-  H4: 600_000,
-  D1: 900_000,
+  M15: 10 * 60_000,
+  H1: 30 * 60_000,
+  H4: 2 * 60 * 60_000,
+  D1: 6 * 60 * 60_000,
 };
 
 const TIMEFRAME_INTERVAL_MAP: Record<
@@ -398,6 +403,10 @@ export class TwelveDataCandleProvider
       "UTC",
     );
 
+    await twelveDataBudget.acquire(
+      `time_series ${input.timeframe}`,
+    );
+
     const controller =
       new AbortController();
 
@@ -445,6 +454,17 @@ export class TwelveDataCandleProvider
             payload,
           );
 
+        if (
+          providerError.success &&
+          isRateLimitMessage(
+            providerError.data.message,
+          )
+        ) {
+          twelveDataBudget.reportRateLimited(
+            providerError.data.message,
+          );
+        }
+
         throw new TwelveDataCandleProviderError(
           providerError.success
             ? providerError.data
@@ -460,6 +480,17 @@ export class TwelveDataCandleProvider
         apiErrorSchema.safeParse(
           payload,
         );
+
+      if (
+        providerError.success &&
+        isRateLimitMessage(
+          providerError.data.message,
+        )
+      ) {
+        twelveDataBudget.reportRateLimited(
+            providerError.data.message,
+          );
+      }
 
       if (
         providerError.success &&

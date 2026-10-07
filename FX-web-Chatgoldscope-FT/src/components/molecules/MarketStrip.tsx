@@ -24,6 +24,11 @@ import type {
   MarketSnapshot,
 } from "@/features/market/market.types";
 
+import {
+  describeBias,
+  formatTradingSession,
+} from "@/features/market/market-bias";
+
 const REFRESH_INTERVAL_MS = 30_000;
 
 /**
@@ -105,26 +110,23 @@ function getTradingSession(): string {
   return "MARKET CLOSED";
 }
 
-// Helper component for Market Direction / Bias Badge
-function MarketBiasBadge() {
-  // You can derive this dynamically from snapshot or default to Bullish based on context
-  const bias = "BULLISH" as const; 
-
-  const styles = {
-    BULLISH: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    BEARISH: "bg-rose-50 text-rose-700 border-rose-200",
-    CONSOLIDATING: "bg-amber-50 text-amber-700 border-amber-200",
-  };
-
-  const labels = {
-    BULLISH: "🟢 Bullish Bias",
-    BEARISH: "🔴 Bearish Bias",
-    CONSOLIDATING: "🟡 Consolidating",
-  };
+/*
+ * Bias comes from the backend analysis engine. It is never
+ * defaulted: when the engine has no data the badge says so.
+ */
+function MarketBiasBadge({
+  snapshot,
+}: {
+  snapshot: MarketSnapshot;
+}) {
+  const display = describeBias(snapshot.bias);
 
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${styles[bias]}`}>
-      {labels[bias]}
+    <span
+      className={display.className}
+      title={display.detail}
+    >
+      {display.label}
     </span>
   );
 }
@@ -374,23 +376,48 @@ export function MarketStrip() {
         </span>
 
         <span className="font-semibold text-[var(--text-secondary)]">
-          {tradingSession}
+          {formatTradingSession(snapshot.tradingSession) ??
+            tradingSession}
         </span>
       </div>
 
       {/* Market Direction / Bias Badge */}
-      <MarketBiasBadge />
+      <MarketBiasBadge snapshot={snapshot} />
 
       {/* Live status */}
-      <Badge tone="success">
-        <Wifi
-          size={12}
-          className="mr-1"
-          aria-hidden="true"
-        />
+      {(() => {
+        const marketClosed =
+          snapshot.session.name === "MARKET_CLOSED";
 
-        Live market
-      </Badge>
+        const delayed =
+          Boolean(error) ||
+          (snapshot.bias?.available === true &&
+            snapshot.bias.stale);
+
+        if (marketClosed) {
+          return (
+            <Badge tone="warning">Market closed</Badge>
+          );
+        }
+
+        if (delayed) {
+          return (
+            <Badge tone="warning">Delayed data</Badge>
+          );
+        }
+
+        return (
+          <Badge tone="success">
+            <Wifi
+              size={12}
+              className="mr-1"
+              aria-hidden="true"
+            />
+
+            Live market
+          </Badge>
+        );
+      })()}
 
       {isRefreshing ? (
         <LoaderCircle

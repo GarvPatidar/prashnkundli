@@ -1,3 +1,6 @@
+import type { HistorySummary } from "../analysis/history-summary.js";
+import type { TradeScenarioSet } from "../analysis/trade-scenarios.js";
+import { env } from "../../config.js";
 import type {
   ChatRequest,
   TraderProfileContext,
@@ -127,6 +130,22 @@ export interface AiMarketContext {
   symbol:
     "XAUUSD";
 
+  /*
+   * Real statistics from the daily candles (about 14 months).
+   * The ONLY allowed source for long-period / "1 year" answers.
+   */
+  history:
+    | HistorySummary
+    | null;
+
+  /*
+   * Conditional plans (entry, stop, targets) computed from engine
+   * levels. The ONLY source for trade ideas and stop-loss levels.
+   */
+  tradeScenarios:
+    | TradeScenarioSet
+    | null;
+
   primaryTimeframe:
     "M15";
 
@@ -234,6 +253,13 @@ export interface AiSessionContext {
 }
 
 export interface AiNewsContext {
+  /*
+   * False while the economic calendar / news feed is a mock.
+   * The AI must then NOT say that no event risk exists.
+   */
+  calendarConnected:
+    boolean;
+
   newsRiskWindow:
     boolean;
 
@@ -429,6 +455,14 @@ function buildMarketContext(
     symbol:
       "XAUUSD",
 
+    history:
+      marketIntelligence.history ??
+      null,
+
+    tradeScenarios:
+      marketIntelligence.tradeScenarios ??
+      null,
+
     primaryTimeframe:
       marketIntelligence
         .primaryTimeframe,
@@ -572,6 +606,9 @@ function buildNewsContext(
     NewsContext,
 ): AiNewsContext {
   return {
+    calendarConnected:
+      env.CALENDAR_PROVIDER !== "mock",
+
     newsRiskWindow:
       news.newsRiskWindow,
 

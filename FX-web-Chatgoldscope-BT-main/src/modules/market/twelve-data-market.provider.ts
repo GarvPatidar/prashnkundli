@@ -3,6 +3,11 @@ import { z } from "zod";
 import type { MarketProvider } from "./market.provider.js";
 import type { MarketSnapshot } from "../../types.js";
 
+import {
+  isRateLimitMessage,
+  twelveDataBudget,
+} from "./twelve-data-budget.js";
+
 const REQUEST_TIMEOUT_MS = 10_000;
 
 /*
@@ -10,7 +15,13 @@ const REQUEST_TIMEOUT_MS = 10_000;
  * frontend polling, chat orchestration, and simultaneous
  * consumers do not repeatedly hit Twelve Data.
  */
-const SNAPSHOT_CACHE_TTL_MS = 12_000;
+const SNAPSHOT_CACHE_TTL_MS = 30_000;
+
+/*
+ * /quote is only needed for "is the market open" and costs a credit,
+ * so it is refreshed far less often than the price.
+ */
+const QUOTE_CACHE_TTL_MS = 5 * 60_000;
 
 /*
  * If Twelve Data temporarily fails, a recent last-known-good
@@ -19,7 +30,7 @@ const SNAPSHOT_CACHE_TTL_MS = 12_000;
  * We intentionally keep this bounded. Market data older than
  * this must not be silently treated as acceptable live data.
  */
-const MAX_STALE_SNAPSHOT_AGE_MS = 60_000;
+const MAX_STALE_SNAPSHOT_AGE_MS = 120_000;
 
 const priceSchema = z.object({
   price: z.coerce.number().finite(),
@@ -113,76 +124,6 @@ function normalizeBaseUrl(
   );
 }
 
-function resolveTimestamp(
-  quote: z.infer<
-    typeof quoteSchema
-  >,
-): string {
-  const rawTimestamp =
-    quote.last_quote_at ??
-    quote.timestamp;
-
-  if (
-    rawTimestamp !== undefined
-  ) {
-    const numericTimestamp =
-      Number(rawTimestamp);
-
-    if (
-      Number.isFinite(
-        numericTimestamp,
-      )
-    ) {
-      const milliseconds =
-        numericTimestamp >
-        10_000_000_000
-          ? numericTimestamp
-          : numericTimestamp *
-            1_000;
-
-      const date =
-        new Date(
-          milliseconds,
-        );
-
-      if (
-        !Number.isNaN(
-          date.getTime(),
-        )
-      ) {
-        return date.toISOString();
-      }
-    }
-  }
-
-  if (quote.datetime) {
-    const normalized =
-      quote.datetime.includes(" ")
-        ? quote.datetime.replace(
-            " ",
-            "T",
-          )
-        : `${quote.datetime}T00:00:00`;
-
-    const date =
-      new Date(
-        normalized.endsWith("Z")
-          ? normalized
-          : `${normalized}Z`,
-      );
-
-    if (
-      !Number.isNaN(
-        date.getTime(),
-      )
-    ) {
-      return date.toISOString();
-    }
-  }
-
-  return new Date().toISOString();
-}
-
 export class TwelveDataMarketProvider
   implements MarketProvider
 {
@@ -190,6 +131,13 @@ export class TwelveDataMarketProvider
 
   private cachedSnapshot:
     | CachedMarketSnapshot
+    | null = null;
+
+  private cachedQuote:
+    | {
+        data: z.infer<typeof quoteSchema>;
+        cachedAt: number;
+      }
     | null = null;
 
   private inFlightSnapshotRequest:
@@ -238,6 +186,8 @@ export class TwelveDataMarketProvider
       this.apiKey,
     );
 
+    await twelveDataBudget.acquire(endpoint);
+
     const controller =
       new AbortController();
 
@@ -283,6 +233,17 @@ export class TwelveDataMarketProvider
         providerErrorSchema.safeParse(
           payload,
         );
+
+      if (
+        providerError.success &&
+        isRateLimitMessage(
+          providerError.data.message,
+        )
+      ) {
+        twelveDataBudget.reportRateLimited(
+            providerError.data.message,
+          );
+      }
 
       if (
         !response.ok ||
@@ -357,19 +318,61 @@ export class TwelveDataMarketProvider
     );
   }
 
+  private async getQuote(): Promise<
+    z.infer<typeof quoteSchema>
+  > {
+    const cached = this.cachedQuote;
+
+    if (
+      cached &&
+      Date.now() - cached.cachedAt <
+        QUOTE_CACHE_TTL_MS
+    ) {
+      return cached.data;
+    }
+
+    try {
+      const raw =
+        await this.request("quote");
+
+      const parsed =
+        quoteSchema.safeParse(raw);
+
+      if (!parsed.success) {
+        throw new TwelveDataMarketProviderError(
+          "Twelve Data quote response did not match the expected schema.",
+          "INVALID_PROVIDER_RESPONSE",
+          parsed.error.flatten(),
+        );
+      }
+
+      this.cachedQuote = {
+        data: parsed.data,
+        cachedAt: Date.now(),
+      };
+
+      return parsed.data;
+    } catch (error) {
+      // A stale market-open flag is better than no price at all.
+      if (cached) {
+        return cached.data;
+      }
+
+      throw error;
+    }
+  }
+
   private async fetchSnapshot():
     Promise<MarketSnapshot> {
     /*
-     * Price and quote are independent,
-     * so fetch them concurrently.
+     * Price is fetched every refresh. The quote (market-open flag)
+     * is cached for minutes to save credits.
      */
-    const [
-      rawPrice,
-      rawQuote,
-    ] = await Promise.all([
-      this.request("price"),
-      this.request("quote"),
-    ]);
+    const rawPrice =
+      await this.request("price");
+
+    const quoteData =
+      await this.getQuote();
 
     const priceResult =
       priceSchema.safeParse(
@@ -384,26 +387,15 @@ export class TwelveDataMarketProvider
       );
     }
 
-    const quoteResult =
-      quoteSchema.safeParse(
-        rawQuote,
-      );
-
-    if (!quoteResult.success) {
-      throw new TwelveDataMarketProviderError(
-        "Twelve Data quote response did not match the expected schema.",
-        "INVALID_PROVIDER_RESPONSE",
-        quoteResult.error.flatten(),
-      );
-    }
-
     const price =
       priceResult.data.price;
 
+    /*
+     * The price was fetched just now, so that is its timestamp.
+     * (The cached quote's own timestamp can be minutes old.)
+     */
     const timestamp =
-      resolveTimestamp(
-        quoteResult.data,
-      );
+      new Date().toISOString();
 
     return {
       symbol: "XAUUSD",
@@ -430,8 +422,8 @@ export class TwelveDataMarketProvider
 
       session: {
         name:
-          quoteResult.data
-            .is_market_open
+          quoteData
+            .is_market_open !== false
             ? "MARKET_OPEN"
             : "MARKET_CLOSED",
 

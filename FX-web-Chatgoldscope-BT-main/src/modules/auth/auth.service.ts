@@ -1,8 +1,13 @@
 import { authRepository } from "./auth.repository.js";
 import { otpService } from "./otp.service.js";
 import { hashPassword } from "./password.js";
+import {
+  PhoneValidationError,
+  normalizeCountryCode,
+  normalizePhone,
+} from "./phone.js";
+import { env } from "../../config.js";
 
-const DEFAULT_COUNTRY_CODE = "+91";
 
 export interface SignupInput {
   fullName: string;
@@ -27,7 +32,7 @@ export interface SignupResult {
   };
 
   verification: {
-    required: false;
+    required: boolean;
   };
 }
 
@@ -89,71 +94,32 @@ function normalizeFullName(fullName: string): string {
   return normalizedName;
 }
 
-function normalizeCountryCode(
-  countryCode?: string,
-): string {
-  const rawCountryCode =
-    countryCode?.trim() || DEFAULT_COUNTRY_CODE;
+function normalizePhoneInput(
+  countryCodeInput: string | undefined,
+  phoneInput: string,
+): { countryCode: string; phone: string } {
+  try {
+    const countryCode =
+      normalizeCountryCode(countryCodeInput);
 
-  const digits = rawCountryCode.replace(/\D/g, "");
+    return {
+      countryCode,
+      phone: normalizePhone(
+        countryCode,
+        phoneInput,
+      ),
+    };
+  } catch (error) {
+    if (error instanceof PhoneValidationError) {
+      throw new AuthServiceError(
+        error.message,
+        "INVALID_PHONE",
+        400,
+      );
+    }
 
-  if (!digits || digits.length > 4) {
-    throw new AuthServiceError(
-      "Invalid country code.",
-      "INVALID_PHONE",
-      400,
-    );
+    throw error;
   }
-
-  return `+${digits}`;
-}
-
-function normalizePhone(
-  countryCode: string,
-  phone: string,
-): string {
-  const countryCodeDigits =
-    countryCode.replace(/\D/g, "");
-
-  let phoneDigits = phone.replace(/\D/g, "");
-
-  phoneDigits = phoneDigits.replace(/^0+/, "");
-
-  if (
-    phoneDigits.startsWith(countryCodeDigits) &&
-    phoneDigits.length > 10
-  ) {
-    phoneDigits = phoneDigits.slice(
-      countryCodeDigits.length,
-    );
-  }
-
-  if (
-    phoneDigits.length < 7 ||
-    phoneDigits.length > 12
-  ) {
-    throw new AuthServiceError(
-      "Invalid mobile number.",
-      "INVALID_PHONE",
-      400,
-    );
-  }
-
-  const completePhone =
-    countryCodeDigits + phoneDigits;
-
-  if (
-    completePhone.length < 8 ||
-    completePhone.length > 15
-  ) {
-    throw new AuthServiceError(
-      "Invalid mobile number.",
-      "INVALID_PHONE",
-      400,
-    );
-  }
-
-  return completePhone;
 }
 
 function normalizeEmail(
@@ -183,6 +149,17 @@ function normalizeEmail(
   return normalizedEmail;
 }
 
+function isUniqueConstraintError(
+  error: unknown,
+): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code ===
+      "P2002"
+  );
+}
+
 export class AuthService {
   async signup(
     input: SignupInput,
@@ -191,15 +168,11 @@ export class AuthService {
       input.fullName,
     );
 
-    const countryCode =
-      normalizeCountryCode(
+    const { countryCode, phone } =
+      normalizePhoneInput(
         input.countryCode,
+        input.phone,
       );
-
-    const phone = normalizePhone(
-      countryCode,
-      input.phone,
-    );
 
     const email = normalizeEmail(
       input.email,
@@ -239,33 +212,57 @@ export class AuthService {
       );
 
     /*
-     * Create the user in the database.
+     * Account + profile are created in ONE write.
      *
-     * OTP verification is temporarily bypassed
-     * because no WhatsApp OTP provider is configured yet.
+     * AUTO_ACTIVATE_USERS=true (development / mock OTP)
+     * creates the account already verified. In production
+     * with a real OTP provider it is false and the account
+     * starts as PENDING_VERIFICATION.
      */
-    const user =
-      await authRepository.createUser({
-        fullName,
-        phone,
-        countryCode,
-        email,
-        passwordHash,
-        whatsappConsent:
-          input.whatsappConsent,
-      });
+    let activatedUser;
 
-    /*
-     * Activate the account immediately for now.
-     *
-     * This sets:
-     * status = ACTIVE
-     * phoneVerifiedAt = current timestamp
-     */
-    const activatedUser =
-      await authRepository.activateUser(
-        user.id,
-      );
+    try {
+      activatedUser =
+        await authRepository.createUser({
+          fullName,
+          phone,
+          countryCode,
+          email,
+          passwordHash,
+          whatsappConsent:
+            input.whatsappConsent,
+          autoActivate:
+            env.AUTO_ACTIVATE_USERS,
+        });
+    } catch (error) {
+      /*
+       * Two simultaneous signups can both pass the
+       * "already exists" checks above. The database
+       * unique constraint is the final guard.
+       */
+      if (isUniqueConstraintError(error)) {
+        const target = JSON.stringify(
+          (error as { meta?: unknown }).meta ??
+            "",
+        ).toLowerCase();
+
+        if (target.includes("email")) {
+          throw new AuthServiceError(
+            "An account already exists with this email address.",
+            "EMAIL_ALREADY_REGISTERED",
+            409,
+          );
+        }
+
+        throw new AuthServiceError(
+          "An account already exists with this mobile number.",
+          "PHONE_ALREADY_REGISTERED",
+          409,
+        );
+      }
+
+      throw error;
+    }
 
     return {
       success: true,
@@ -284,7 +281,8 @@ export class AuthService {
       },
 
       verification: {
-        required: false,
+        required:
+          !env.AUTO_ACTIVATE_USERS,
       },
     };
   }
@@ -297,15 +295,11 @@ export class AuthService {
   async resendSignupOtp(
     input: ResendSignupOtpInput,
   ): Promise<ResendSignupOtpResult> {
-    const countryCode =
-      normalizeCountryCode(
+    const { phone } =
+      normalizePhoneInput(
         input.countryCode,
+        input.phone,
       );
-
-    const phone = normalizePhone(
-      countryCode,
-      input.phone,
-    );
 
     const user =
       await authRepository.findUserByPhone(

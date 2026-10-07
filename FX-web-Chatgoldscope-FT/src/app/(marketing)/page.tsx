@@ -16,13 +16,13 @@ const productFeatures = [
     icon: Camera,
     title: "Upload your trading situation",
     description:
-      "Share TradingView, MT4 or MT5 screenshots and confirm the detected position details before analysis.",
+      "Share a TradingView or MT4/MT5 chart screenshot and get analysis of the visible price action and key levels.",
   },
   {
     icon: ChartNoAxesCombined,
     title: "Analyse current XAU/USD context",
     description:
-      "Combine your trade situation with current market structure, important levels and multiple timeframes.",
+      "Get live market structure, important levels and multiple-timeframe confluence for gold.",
   },
   {
     icon: ShieldCheck,
@@ -34,7 +34,7 @@ const productFeatures = [
 
 const trustPoints = [
   "Built exclusively for XAU/USD",
-  "Screenshot and position analysis",
+  "Screenshot and chart analysis",
   "Scenario-based decision support",
 ] as const;
 
@@ -60,13 +60,13 @@ export default function HomePage() {
             </div>
 
             <h1 className="mt-7 max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.04em] text-[var(--text)] sm:text-5xl lg:text-6xl">
-              Understand your gold trade before making your next decision.
+              Understand the gold market before making your next decision.
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-7 text-[var(--text-muted)] sm:text-lg sm:leading-8">
-              Upload your chart, explain your current position and receive
-              structured XAU/USD market analysis based on live context, risk and
-              possible scenarios.
+              Upload your chart or ask a question and receive structured
+              XAU/USD market analysis based on live context, risk and possible
+              buy and sell scenarios.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -139,7 +139,7 @@ export default function HomePage() {
                           Screenshot detected
                         </p>
                         <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
-                          XAU/USD · M15 · Buy position
+                          XAU/USD · M15 · Chart
                         </p>
                       </div>
                     </div>
@@ -174,7 +174,7 @@ export default function HomePage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-4">
                       <p className="text-xs text-[var(--text-muted)]">
-                        Position assessment
+                        Scenario assessment
                       </p>
                       <p className="mt-2 text-sm font-medium text-[var(--text)]">
                         Setup requires confirmation

@@ -4,6 +4,11 @@ import { z } from "zod";
 import { executeChat } from "./chat.service.js";
 import { requireAuth } from "./modules/auth/auth.middleware.js";
 import { marketProvider } from "./providers.js";
+import { env } from "./config.js";
+import { candleProvider } from "./modules/market/candle.factory.js";
+import { getMarketBias } from "./modules/analysis/market-bias.service.js";
+import { sessionService } from "./modules/sessions/session.service.js";
+import { twelveDataBudget } from "./modules/market/twelve-data-budget.js";
 import { conversationRepository } from "./repository.js";
 import {
   attachmentService,
@@ -92,10 +97,118 @@ export const routes: FastifyPluginAsync = async (
     };
   });
 
-  app.get("/market/snapshot", async () => {
+  /*
+   * DEV ONLY. Compares the live quote with the latest candle of
+   * every timeframe so price mismatches (header price vs the
+   * "daily close" the AI quotes) can be diagnosed in one look.
+   */
+  if (env.NODE_ENV !== "production") {
+    app.get("/market/debug", async () => {
+      const snapshot = await marketProvider.getSnapshot();
+      const livePrice = snapshot.quote.price;
+
+      const timeframes = ["M15", "H1", "H4", "D1"] as const;
+
+      const candles = await Promise.all(
+        timeframes.map(async (timeframe) => {
+          try {
+            const series = await candleProvider.getCandles({
+              symbol: "XAUUSD",
+              timeframe,
+              /* Same limit as the analysis, so this is a cache hit. */
+              limit: 300,
+            });
+
+            const last = series[series.length - 1];
+
+            if (!last) {
+              return { timeframe, error: "No candles returned." };
+            }
+
+            const diff = last.close - livePrice;
+
+            return {
+              timeframe,
+              lastCandleAt: last.timestamp,
+              open: last.open,
+              high: last.high,
+              low: last.low,
+              close: last.close,
+              diffFromLivePrice: Number(diff.toFixed(2)),
+              diffPercent: Number(
+                ((diff / livePrice) * 100).toFixed(2),
+              ),
+            };
+          } catch (error) {
+            return {
+              timeframe,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : String(error),
+            };
+          }
+        }),
+      );
+
+      return {
+        livePrice,
+        quoteProvider: snapshot.quote.provider,
+        quoteTimestamp: snapshot.quote.timestamp,
+        serverTime: new Date().toISOString(),
+        candles,
+        howToRead:
+          "All closes should be within ~0.5% of livePrice. A large gap means one data source is stale or wrong.",
+      };
+    });
+  }
+
+  app.get("/market/snapshot", async (request, reply) => {
+    /*
+     * Quote and bias are loaded independently so a bias
+     * failure never hides the live price.
+     */
+    let snapshot;
+    let bias;
+
+    try {
+      [snapshot, bias] = await Promise.all([
+        marketProvider.getSnapshot(),
+        getMarketBias(),
+      ]);
+    } catch (error) {
+      request.log.warn(
+        { err: error },
+        "Live market snapshot unavailable.",
+      );
+
+      return reply.status(503).send({
+        success: false,
+        error: {
+          code: "MARKET_DATA_UNAVAILABLE",
+          message: twelveDataBudget.isDailyLimitReached()
+            ? "Live market data is paused because the data provider's daily limit was reached. It resumes automatically after the daily reset."
+            : "Live market data is temporarily unavailable. Please try again shortly.",
+        },
+      });
+    }
+
+    const tradingSession =
+      sessionService.getContext();
+
     return {
       success: true,
-      data: await marketProvider.getSnapshot(),
+      data: {
+        ...snapshot,
+        bias,
+        tradingSession: {
+          name: tradingSession.session,
+          liquidity: tradingSession.liquidity,
+          isOverlap: tradingSession.isOverlap,
+          minutesUntilNextChange:
+            tradingSession.minutesUntilNextSessionChange,
+        },
+      },
     };
   });
 
@@ -267,7 +380,19 @@ app.post(
 
       reply.hijack();
 
+      /*
+       * hijack() skips Fastify's normal reply pipeline, so the
+       * CORS headers set by @fastify/cors must be copied
+       * manually or browsers block the stream cross-origin.
+       */
+      const inheritedHeaders = Object.fromEntries(
+        Object.entries(reply.getHeaders()).filter(
+          ([, value]) => value !== undefined,
+        ),
+      ) as Record<string, string | number | string[]>;
+
       reply.raw.writeHead(200, {
+        ...inheritedHeaders,
         "Content-Type":
           "text/event-stream; charset=utf-8",
         "Cache-Control":
@@ -291,9 +416,7 @@ app.post(
           createSseEvent({
             type: "analysis.failed",
             message:
-              error instanceof Error
-                ? error.message
-                : "Unknown analysis error",
+              "The analysis could not be completed. Please try again.",
           }),
         );
       } finally {

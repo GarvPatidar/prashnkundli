@@ -15,6 +15,13 @@ import { routes } from "./routes.js";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
+    /*
+     * Required behind Render / Vercel / nginx. Without it
+     * request.ip is the proxy address, so the rate limiter
+     * treats every user as one client.
+     */
+    trustProxy: env.TRUST_PROXY,
+
     logger:
       env.NODE_ENV === "development"
         ? {
@@ -54,9 +61,6 @@ export function buildApp(): FastifyInstance {
   /*
    * Core security / platform plugins.
    */
- /*
-   * Core security / platform plugins.
-   */
   void app.register(
     helmet,
   );
@@ -65,11 +69,14 @@ export function buildApp(): FastifyInstance {
     cors,
     {
       origin: [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://goldscopee.vercel.app",
-        "https://shivam-sepia-delta.vercel.app",
-        ...(env.FRONTEND_ORIGIN ? [env.FRONTEND_ORIGIN] : []),
+        ...new Set([
+          "http://localhost:3000",
+          "http://localhost:3001",
+          "https://goldscopee.vercel.app",
+          "https://shivam-sepia-delta.vercel.app",
+          ...(env.FRONTEND_ORIGIN ? [env.FRONTEND_ORIGIN] : []),
+          ...env.CORS_ORIGINS_LIST,
+        ]),
       ],
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

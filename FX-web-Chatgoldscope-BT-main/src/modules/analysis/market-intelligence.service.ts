@@ -2,6 +2,8 @@ import {
   confluenceService,
   type ConfluenceResult,
 } from "./confluence.service.js";
+import type { HistorySummary } from "./history-summary.js";
+import type { TradeScenarioSet } from "./trade-scenarios.js";
 import {
   multiTimeframeService,
   type MultiTimeframeAnalysisResult,
@@ -40,6 +42,10 @@ export interface MarketIntelligenceResult {
     warnings: string[];
   };
 
+  /** Real daily-candle statistics for long-period questions. */
+  history?: HistorySummary | null;
+  /** Conditional entry / stop / target plans from engine levels. */
+  tradeScenarios?: TradeScenarioSet | null;
   generatedAt: string;
 }
 

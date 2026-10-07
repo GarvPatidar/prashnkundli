@@ -134,8 +134,22 @@ const forgotPasswordSchema = z.object({
     .default("+91"),
 });
 
+/*
+ * Credential endpoints get a much stricter limit than the
+ * global 100 req/min, to slow down password guessing and
+ * OTP / signup abuse.
+ */
+const authRateLimit = {
+  config: {
+    rateLimit: {
+      max: 10,
+      timeWindow: "1 minute",
+    },
+  },
+};
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
-  app.post("/signup", async (request, reply) => {
+  app.post("/signup", authRateLimit, async (request, reply) => {
     const parsedRequest = signupSchema.safeParse(request.body);
 
     if (!parsedRequest.success) {
@@ -180,7 +194,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
-  app.post("/resend-otp", async (request, reply) => {
+  app.post("/resend-otp", authRateLimit, async (request, reply) => {
     const parsedRequest = resendOtpSchema.safeParse(request.body);
 
     if (!parsedRequest.success) {
@@ -221,7 +235,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
-  app.post("/verify-otp", async (request, reply) => {
+  app.post("/verify-otp", authRateLimit, async (request, reply) => {
     const parsedRequest = verifyOtpSchema.safeParse(request.body);
 
     if (!parsedRequest.success) {
@@ -288,7 +302,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
-  app.post("/login", async (request, reply) => {
+  app.post("/login", authRateLimit, async (request, reply) => {
     const parsedRequest = loginSchema.safeParse(request.body);
 
     if (!parsedRequest.success) {
@@ -478,6 +492,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 );
 app.post(
   "/forgot-password",
+  authRateLimit,
   async (request, reply) => {
     const parsedRequest =
       forgotPasswordSchema.safeParse(request.body);
@@ -539,6 +554,7 @@ app.post(
 );
 app.post(
   "/reset-password",
+  authRateLimit,
   async (request, reply) => {
     const parsedRequest =
       resetPasswordSchema.safeParse(request.body);

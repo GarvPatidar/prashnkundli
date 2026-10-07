@@ -227,19 +227,58 @@ function mapTraderProfile(
 async function loadMarketIntelligence():
   Promise<MarketLoadResult> {
   try {
-    const marketIntelligence =
-      await marketIntelligenceOrchestrator.generate(
-        {
-          symbol:
-            "XAUUSD",
+    const latest =
+      await marketIntelligenceOrchestrator.getLatest();
 
-          candleLimit:
-            300,
-        },
+    if (!latest.stale) {
+      return {
+        marketIntelligence:
+          latest.result,
+
+        error:
+          null,
+      };
+    }
+
+    /*
+     * Last-known-good analysis. Clearly flag it so the
+     * AI describes it as slightly delayed, not as live.
+     */
+    const ageMinutes =
+      Math.max(
+        1,
+        Math.round(
+          latest.ageMs / 60_000,
+        ),
       );
 
+    const staleWarning =
+      `Market data refresh is delayed. This analysis is about ${ageMinutes} minute(s) old.`;
+
     return {
-      marketIntelligence,
+      marketIntelligence: {
+        ...latest.result,
+
+        summary: {
+          ...latest.result.summary,
+
+          warnings: [
+            staleWarning,
+            ...latest.result.summary
+              .warnings,
+          ],
+        },
+
+        dataQuality: {
+          ...latest.result.dataQuality,
+
+          warnings: [
+            staleWarning,
+            ...latest.result.dataQuality
+              .warnings,
+          ],
+        },
+      },
 
       error:
         null,
