@@ -7,14 +7,9 @@ import type {
   GoldScopeAnalysis,
   ResponseMode,
 } from "./types/chat.types";
+import { env } from "@/config/env";
 
-const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-if (!rawApiBaseUrl) {
-  throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
-}
-
-const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "");
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || env.apiBaseUrl || "https://prashnkundli.onrender.com").replace(/\/+$/, "");
 
 export interface UploadChatAttachmentResponse {
   success: true;
