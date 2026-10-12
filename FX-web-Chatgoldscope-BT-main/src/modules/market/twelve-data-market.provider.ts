@@ -15,7 +15,10 @@ const REQUEST_TIMEOUT_MS = 10_000;
  * frontend polling, chat orchestration, and simultaneous
  * consumers do not repeatedly hit Twelve Data.
  */
-const SNAPSHOT_CACHE_TTL_MS = 30_000;
+const SNAPSHOT_CACHE_TTL_MS = Math.max(
+  3_000,
+  Number(process.env.MARKET_SNAPSHOT_TTL_MS) || 15_000,
+);
 
 /*
  * /quote is only needed for "is the market open" and costs a credit,

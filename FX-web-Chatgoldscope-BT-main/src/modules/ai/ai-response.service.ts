@@ -1,3 +1,7 @@
+import {
+  extractPrices,
+  guardStrings,
+} from "./answer-guard.js";
 import type {
   ChatRequest,
   AnalysisResult,
@@ -686,6 +690,29 @@ export class AiResponseService {
         "AI_PROVIDER_FAILED",
         error,
       );
+    }
+
+    /*
+     * Grounding guard: never show a price the engine did not produce.
+     * Skipped for screenshots, where prices may come from the user's chart.
+     */
+    if (
+      prepared.metadata.marketAvailable &&
+      !input.request.attachment
+    ) {
+      const guarded = guardStrings(
+        analysis as unknown as Record<string, unknown>,
+        prepared.context,
+        extractPrices(input.request.message ?? ""),
+      );
+
+      if (guarded.removed.length > 0) {
+        console.warn(
+          "[answer-guard] removed ungrounded sentences:",
+          guarded.removed,
+        );
+        analysis = guarded.value as unknown as AnalysisResult;
+      }
     }
 
     let response:

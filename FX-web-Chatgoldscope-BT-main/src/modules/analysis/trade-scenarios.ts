@@ -106,9 +106,16 @@ function pickLevels(
 const describe = (level: Level): string =>
   `${level.timeframe} level, ${level.touches} touches`;
 
+export interface TradeScenarioOptions {
+  /** Stop distance beyond the entry level, in H1 ATR units. */
+  stopBufferAtr?: number;
+}
+
 export function buildTradeScenarios(
   result: MarketIntelligenceResult,
+  options: TradeScenarioOptions = {},
 ): TradeScenarioSet {
+  const stopBufferAtr = options.stopBufferAtr ?? STOP_BUFFER_ATR;
   const { snapshots } = result.marketAnalysis;
 
   const referencePrice = snapshots.M15.metadata.latestClose;
@@ -166,7 +173,7 @@ export function buildTradeScenarios(
 
   if (sellEntry && entryIsNear(sellEntry) && sellTargets.length > 0) {
     const entry = sellEntry.price;
-    const stop = entry + atrH1 * STOP_BUFFER_ATR;
+    const stop = entry + atrH1 * stopBufferAtr;
 
     scenarios.push({
       id: "SELL_REJECTION",
@@ -201,7 +208,7 @@ export function buildTradeScenarios(
 
   if (buyEntry && entryIsNear(buyEntry) && buyTargets.length > 0) {
     const entry = buyEntry.price;
-    const stop = entry - atrH1 * STOP_BUFFER_ATR;
+    const stop = entry - atrH1 * stopBufferAtr;
 
     scenarios.push({
       id: "BUY_BOUNCE",
