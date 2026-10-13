@@ -43,7 +43,14 @@ class TwelveDataBudget {
   async acquire(
     label: string,
     maxWaitMs = DEFAULT_MAX_WAIT_MS,
+    /**
+     * Slots kept free for higher-priority callers. Candle history
+     * reserves slots so the live price (the market strip) is never
+     * starved by analysis requests.
+     */
+    reserve = 0,
   ): Promise<void> {
+    const effectiveLimit = Math.max(1, this.limitPerMinute - reserve);
     const startedAt = Date.now();
 
     for (;;) {
@@ -64,7 +71,7 @@ class TwelveDataBudget {
       const oldest = this.stamps[0];
 
       if (
-        this.stamps.length >= this.limitPerMinute &&
+        this.stamps.length >= effectiveLimit &&
         oldest !== undefined
       ) {
         waitMs = Math.max(
@@ -80,7 +87,7 @@ class TwelveDataBudget {
 
       if (now - startedAt + waitMs > maxWaitMs) {
         throw new TwelveDataBudgetError(
-          `Twelve Data credit budget exhausted (${this.limitPerMinute}/min). Skipped "${label}"; cached data will be used.`,
+          `Twelve Data credit budget exhausted (${effectiveLimit}/min for this request type). Skipped "${label}"; cached data will be used.`,
         );
       }
 

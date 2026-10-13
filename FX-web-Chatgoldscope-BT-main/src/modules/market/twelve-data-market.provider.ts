@@ -33,7 +33,7 @@ const QUOTE_CACHE_TTL_MS = 5 * 60_000;
  * We intentionally keep this bounded. Market data older than
  * this must not be silently treated as acceptable live data.
  */
-const MAX_STALE_SNAPSHOT_AGE_MS = 120_000;
+const MAX_STALE_SNAPSHOT_AGE_MS = 5 * 60_000;
 
 const priceSchema = z.object({
   price: z.coerce.number().finite(),

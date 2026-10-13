@@ -662,10 +662,16 @@ async function readLiveQuote(): Promise<{
   try {
     const snapshot = await marketProvider.getSnapshot();
 
+    /* A quote older than 3 minutes is not "live"; use the candle close. */
+    const ageMs =
+      Date.now() - Date.parse(snapshot.quote.timestamp);
+
     return {
-      price: Number.isFinite(snapshot.quote.price)
-        ? snapshot.quote.price
-        : null,
+      price:
+        Number.isFinite(snapshot.quote.price) &&
+        (!Number.isFinite(ageMs) || ageMs <= 3 * 60_000)
+          ? snapshot.quote.price
+          : null,
       marketClosed: snapshot.session.name === "MARKET_CLOSED",
     };
   } catch {
