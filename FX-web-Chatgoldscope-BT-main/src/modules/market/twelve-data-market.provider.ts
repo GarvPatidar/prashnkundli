@@ -15,7 +15,10 @@ const REQUEST_TIMEOUT_MS = 10_000;
  * frontend polling, chat orchestration, and simultaneous
  * consumers do not repeatedly hit Twelve Data.
  */
-const SNAPSHOT_CACHE_TTL_MS = 30_000;
+const SNAPSHOT_CACHE_TTL_MS = Math.max(
+  3_000,
+  Number(process.env.MARKET_SNAPSHOT_TTL_MS) || 15_000,
+);
 
 /*
  * /quote is only needed for "is the market open" and costs a credit,
@@ -30,7 +33,7 @@ const QUOTE_CACHE_TTL_MS = 5 * 60_000;
  * We intentionally keep this bounded. Market data older than
  * this must not be silently treated as acceptable live data.
  */
-const MAX_STALE_SNAPSHOT_AGE_MS = 120_000;
+const MAX_STALE_SNAPSHOT_AGE_MS = 5 * 60_000;
 
 const priceSchema = z.object({
   price: z.coerce.number().finite(),

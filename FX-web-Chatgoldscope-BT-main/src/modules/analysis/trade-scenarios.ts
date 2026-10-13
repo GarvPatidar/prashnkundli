@@ -43,7 +43,8 @@ interface Level {
   touches: number;
 }
 
-const STOP_BUFFER_ATR = 0.5;
+/* Provisional default; confirm with `npm run backtest` (tested 0.5 / 1.0 / 1.5). */
+const STOP_BUFFER_ATR = 1.0;
 const MIN_LEVEL_DISTANCE_ATR = 0.25;
 const MIN_LEVEL_GAP_ATR = 0.5;
 
@@ -55,13 +56,16 @@ const MAX_ENTRY_DISTANCE_ATR = 8;
 
 const round = (value: number): number => Number(value.toFixed(2));
 
+type LevelTimeframe = "H1" | "H4" | "D1";
+
 function collectLevels(
   result: MarketIntelligenceResult,
   kind: "supports" | "resistances",
+  timeframes: readonly LevelTimeframe[] = ["H1", "H4", "D1"],
 ): Level[] {
   const { snapshots } = result.marketAnalysis;
 
-  return (["H1", "H4", "D1"] as const).flatMap((timeframe) =>
+  return timeframes.flatMap((timeframe) =>
     snapshots[timeframe].structure[kind].map((level) => ({
       price: level.price,
       timeframe,
@@ -106,12 +110,24 @@ function pickLevels(
 const describe = (level: Level): string =>
   `${level.timeframe} level, ${level.touches} touches`;
 
+export interface TradeScenarioOptions {
+  /** Stop distance beyond the entry level, in H1 ATR units. */
+  stopBufferAtr?: number;
+  /** Which timeframes' support/resistance may be used (default H1, H4, D1). */
+  levelTimeframes?: readonly LevelTimeframe[];
+  /** Live price to measure from; defaults to the latest M15 close. */
+  referencePrice?: number;
+}
+
 export function buildTradeScenarios(
   result: MarketIntelligenceResult,
+  options: TradeScenarioOptions = {},
 ): TradeScenarioSet {
+  const stopBufferAtr = options.stopBufferAtr ?? STOP_BUFFER_ATR;
   const { snapshots } = result.marketAnalysis;
 
-  const referencePrice = snapshots.M15.metadata.latestClose;
+  const referencePrice =
+    options.referencePrice ?? snapshots.M15.metadata.latestClose;
 
   const atrH1 =
     snapshots.H1.atr14.value ??
@@ -132,14 +148,14 @@ export function buildTradeScenarios(
   }
 
   const resistances = pickLevels(
-    collectLevels(result, "resistances"),
+    collectLevels(result, "resistances", options.levelTimeframes),
     referencePrice,
     atrH1,
     "above",
   );
 
   const supports = pickLevels(
-    collectLevels(result, "supports"),
+    collectLevels(result, "supports", options.levelTimeframes),
     referencePrice,
     atrH1,
     "below",
@@ -166,7 +182,7 @@ export function buildTradeScenarios(
 
   if (sellEntry && entryIsNear(sellEntry) && sellTargets.length > 0) {
     const entry = sellEntry.price;
-    const stop = entry + atrH1 * STOP_BUFFER_ATR;
+    const stop = entry + atrH1 * stopBufferAtr;
 
     scenarios.push({
       id: "SELL_REJECTION",
@@ -201,7 +217,7 @@ export function buildTradeScenarios(
 
   if (buyEntry && entryIsNear(buyEntry) && buyTargets.length > 0) {
     const entry = buyEntry.price;
-    const stop = entry - atrH1 * STOP_BUFFER_ATR;
+    const stop = entry - atrH1 * stopBufferAtr;
 
     scenarios.push({
       id: "BUY_BOUNCE",

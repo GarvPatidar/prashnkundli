@@ -77,15 +77,26 @@ interface MutableScore {
   warnings: string[];
 }
 
-const TIMEFRAME_WEIGHTS: Record<
+export type ConfluenceWeights = Record<
   keyof MultiTimeframeSnapshots,
   number
-> = {
+>;
+
+/*
+ * Live weighting. Exported so the backtest can compare other
+ * weightings against it. Changing this changes live answers.
+ */
+export const DEFAULT_TIMEFRAME_WEIGHTS: ConfluenceWeights = {
   M15: 0.35,
   H1: 0.30,
   H4: 0.25,
   D1: 0.10,
 };
+
+export interface ConfluenceOptions {
+  /** Override the timeframe weights (used by the backtest). */
+  weights?: ConfluenceWeights;
+}
 
 function clamp(
   value: number,
@@ -771,6 +782,7 @@ function detectConflicts(
 
 function calculateWeightedScores(
   timeframes: ConfluenceResult["timeframes"],
+  weights: ConfluenceWeights,
 ): {
   bullishScore: number;
   bearishScore: number;
@@ -788,7 +800,7 @@ function calculateWeightedScores(
 
   for (const timeframe of keys) {
     const weight =
-      TIMEFRAME_WEIGHTS[timeframe];
+      weights[timeframe];
 
     const result =
       timeframes[timeframe];
@@ -888,7 +900,12 @@ function calculateConfidence(
 export class ConfluenceService {
   calculate(
     snapshots: MultiTimeframeSnapshots,
+    options: ConfluenceOptions = {},
   ): ConfluenceResult {
+    const weights =
+      options.weights ??
+      DEFAULT_TIMEFRAME_WEIGHTS;
+
     const timeframes = {
       M15: calculateTimeframeConfluence(
         "M15",
@@ -912,7 +929,10 @@ export class ConfluenceService {
     };
 
     const weightedScores =
-      calculateWeightedScores(timeframes);
+      calculateWeightedScores(
+        timeframes,
+        weights,
+      );
 
     const netScore =
       weightedScores.bullishScore -

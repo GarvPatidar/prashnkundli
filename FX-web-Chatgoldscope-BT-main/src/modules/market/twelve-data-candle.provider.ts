@@ -403,8 +403,11 @@ export class TwelveDataCandleProvider
       "UTC",
     );
 
+    /* Keep 2 credits/min free for the live price. */
     await twelveDataBudget.acquire(
       `time_series ${input.timeframe}`,
+      undefined,
+      2,
     );
 
     const controller =

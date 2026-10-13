@@ -1,3 +1,15 @@
+import {
+  extractPrices,
+  guardStrings,
+} from "./answer-guard.js";
+
+import { marketProvider } from "../../providers.js";
+
+import {
+  composeDecisionReply,
+  composeStaticReply,
+  type ComposedReply,
+} from "../decision/reply-composer.js";
 import type {
   ChatRequest,
   AnalysisResult,
@@ -638,6 +650,126 @@ async function resolveAiAttachment(
   }
 }
 
+/*
+ * Live quote for the decision layer. Same cached snapshot the market strip
+ * uses, so the chat price and the strip price are the same number. Falls back
+ * to the latest candle close if the quote is unavailable.
+ */
+async function readLiveQuote(): Promise<{
+  price: number | null;
+  marketClosed: boolean;
+}> {
+  try {
+    const snapshot = await marketProvider.getSnapshot();
+
+    /* A quote older than 3 minutes is not "live"; use the candle close. */
+    const ageMs =
+      Date.now() - Date.parse(snapshot.quote.timestamp);
+
+    return {
+      price:
+        Number.isFinite(snapshot.quote.price) &&
+        (!Number.isFinite(ageMs) || ageMs <= 3 * 60_000)
+          ? snapshot.quote.price
+          : null,
+      marketClosed: snapshot.session.name === "MARKET_CLOSED",
+    };
+  } catch {
+    return { price: null, marketClosed: false };
+  }
+}
+
+async function tryComposeDecisionReply(
+  prepared: PreparedAiAnalysis,
+  request: ChatRequest,
+): Promise<ComposedReply | null> {
+  if (
+    !prepared.metadata.marketAvailable ||
+    !prepared.marketIntelligence ||
+    request.attachment ||
+    request.position
+  ) {
+    return null;
+  }
+
+  const live = await readLiveQuote();
+
+  return composeDecisionReply({
+    message: request.message,
+    result: prepared.marketIntelligence,
+    livePrice: live.price,
+    marketClosed: live.marketClosed,
+    riskScore: prepared.metadata.riskScore,
+    session: prepared.sessionContext,
+    delayedMinutes: prepared.delayedMinutes,
+  });
+}
+
+function buildComposedResult(
+  prepared: PreparedAiAnalysis,
+  composed: { text: string; action: "BUY" | "SELL" | "WAIT" },
+): GeneratedAiResponse {
+  const decision = { action: composed.action };
+  const firstLine = composed.text.split("\n")[0] ?? "";
+
+  const analysis: AnalysisResult = {
+    marketCondition: firstLine,
+    mainRisk: "See the reply for risks and invalidation.",
+    bullishScenario: "See the reply.",
+    bearishScenario: "See the reply.",
+    positionStatus: "Analysis only. No trading account is connected.",
+    nextStep: "See the reply.",
+    confidence: null,
+    disclaimer:
+      "Signals are predictions based on market analysis. Do not follow blindly; trade at your own risk.",
+  };
+
+  const base = buildSafeFallback(prepared);
+
+  const response: UserFacingAnalysis = {
+    ...base,
+    headline: firstLine,
+    decision:
+      decision.action === "BUY"
+        ? "BULLISH"
+        : decision.action === "SELL"
+          ? "BEARISH"
+          : "WAIT",
+    action:
+      decision.action === "BUY"
+        ? "BUY_SETUP"
+        : decision.action === "SELL"
+          ? "SELL_SETUP"
+          : "WAIT",
+    confidence: null,
+    summary: firstLine,
+    traderNote: null,
+  };
+
+  return {
+    analysis,
+    response,
+    responseMode: "CONVERSATIONAL",
+    message: composed.text,
+    prepared,
+    metadata: {
+      symbol: "XAUUSD",
+      primaryTimeframe: "M15",
+      marketAvailable: true,
+      marketConfidence: prepared.metadata.marketConfidence,
+      finalConfidence: null,
+      riskScore: prepared.metadata.riskScore,
+      newsRiskWindow: prepared.metadata.newsRiskWindow,
+      session: prepared.metadata.session,
+      traderExperience: prepared.metadata.traderExperience,
+      emotionalState: prepared.metadata.emotionalState,
+      communicationMode: prepared.metadata.communicationMode,
+      decisionState: response.decision,
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 export class AiResponseService {
   async generate(
     input:
@@ -658,6 +790,57 @@ export class AiResponseService {
         input.userId,
         input.request,
       );
+
+    /*
+     * Trader questions with a deterministic answer (verdict, levels,
+     * ranges, session, indicators, hold/exit, risk, news) are composed from
+     * engine data. No AI call, so they are fast, free and cannot invent
+     * numbers. Full-analysis cards and screenshots still use the AI path.
+     */
+    if (
+      resolveResponseMode(
+        prepared,
+        input.request,
+      ) !== "ANALYSIS"
+    ) {
+      /*
+       * Replies that need no market data (safety, capabilities, account,
+       * track record) work even when the data provider is down.
+       */
+      const fixed =
+        input.request.attachment ||
+        input.request.position
+          ? null
+          : composeStaticReply(
+              input.request.message,
+            );
+
+      if (fixed) {
+        return buildComposedResult(
+          prepared,
+          {
+            text: fixed.text,
+            action: "WAIT",
+          },
+        );
+      }
+
+      const composed =
+        await tryComposeDecisionReply(
+          prepared,
+          input.request,
+        );
+
+      if (composed) {
+        return buildComposedResult(
+          prepared,
+          {
+            text: composed.text,
+            action: composed.decision.action,
+          },
+        );
+      }
+    }
 
     let analysis:
       AnalysisResult;
@@ -686,6 +869,29 @@ export class AiResponseService {
         "AI_PROVIDER_FAILED",
         error,
       );
+    }
+
+    /*
+     * Grounding guard: never show a price the engine did not produce.
+     * Skipped for screenshots, where prices may come from the user's chart.
+     */
+    if (
+      prepared.metadata.marketAvailable &&
+      !input.request.attachment
+    ) {
+      const guarded = guardStrings(
+        analysis as unknown as Record<string, unknown>,
+        prepared.context,
+        extractPrices(input.request.message ?? ""),
+      );
+
+      if (guarded.removed.length > 0) {
+        console.warn(
+          "[answer-guard] removed ungrounded sentences:",
+          guarded.removed,
+        );
+        analysis = guarded.value as unknown as AnalysisResult;
+      }
     }
 
     let response:

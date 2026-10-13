@@ -29,7 +29,10 @@ import {
   formatTradingSession,
 } from "@/features/market/market-bias";
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = Math.max(
+  3_000,
+  Number(process.env.NEXT_PUBLIC_MARKET_REFRESH_MS) || 15_000,
+);
 
 /**
  * Determines the active major trading session
@@ -165,6 +168,17 @@ export function MarketStrip() {
   const requestInFlightRef =
     useRef(false);
 
+  const previousPriceRef =
+    useRef<number | null>(null);
+
+  const [priceFlash, setPriceFlash] =
+    useState<"up" | "down" | null>(null);
+
+  const [updatedAt, setUpdatedAt] =
+    useState<number | null>(null);
+
+  const [, setClock] = useState(0);
+
   const loadSnapshot =
     useCallback(
       async (
@@ -191,6 +205,33 @@ export function MarketStrip() {
             await getMarketSnapshot(
               signal,
             );
+
+          const nextPrice =
+            response.data.quote.price;
+
+          const previousPrice =
+            previousPriceRef.current;
+
+          if (
+            previousPrice !== null &&
+            nextPrice !== previousPrice
+          ) {
+            setPriceFlash(
+              nextPrice > previousPrice
+                ? "up"
+                : "down",
+            );
+
+            window.setTimeout(
+              () => setPriceFlash(null),
+              1200,
+            );
+          }
+
+          previousPriceRef.current =
+            nextPrice;
+
+          setUpdatedAt(Date.now());
 
           setSnapshot(
             response.data,
@@ -247,6 +288,10 @@ export function MarketStrip() {
     const intervalId =
       window.setInterval(
         () => {
+          if (document.hidden) {
+            return;
+          }
+
           void loadSnapshot(
             controller.signal,
             true,
@@ -255,7 +300,26 @@ export function MarketStrip() {
         REFRESH_INTERVAL_MS,
       );
 
+    const onVisible = () => {
+      if (!document.hidden) {
+        void loadSnapshot(
+          controller.signal,
+          true,
+        );
+      }
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      onVisible,
+    );
+
     return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        onVisible,
+      );
+
       window.clearTimeout(
         initialLoadId,
       );
@@ -267,6 +331,15 @@ export function MarketStrip() {
       controller.abort();
     };
   }, [loadSnapshot]);
+
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setClock((value) => value + 1),
+      1000,
+    );
+
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const updateSession =
@@ -362,11 +435,32 @@ export function MarketStrip() {
           Price
         </span>
 
-        <b className="font-semibold text-[var(--text)]">
+        <b
+          className={`rounded px-1 font-semibold transition-colors duration-700 ${
+            priceFlash === "up"
+              ? "bg-emerald-100 text-emerald-700"
+              : priceFlash === "down"
+                ? "bg-rose-100 text-rose-700"
+                : "text-[var(--text)]"
+          }`}
+        >
           {snapshot.quote.price.toFixed(
             2,
           )}
         </b>
+
+        {updatedAt !== null && (
+          <span className="text-xs text-[var(--text-muted)]">
+            {Math.max(
+              0,
+              Math.round(
+                (Date.now() - updatedAt) /
+                  1000,
+              ),
+            )}
+            s ago
+          </span>
+        )}
       </div>
 
       {/* Session */}
