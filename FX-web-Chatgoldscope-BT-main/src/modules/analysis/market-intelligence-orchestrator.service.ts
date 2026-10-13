@@ -1,4 +1,5 @@
 import { candleProvider } from "../market/candle.factory.js";
+import { buildDayStats } from "./day-stats.js";
 import { buildHistorySummary } from "./history-summary.js";
 import { buildTradeScenarios } from "./trade-scenarios.js";
 
@@ -394,6 +395,7 @@ export class MarketIntelligenceOrchestratorService {
       return {
         ...analysed,
         history: buildHistorySummary(d1Candles),
+        dayStats: buildDayStats(d1Candles, m15Candles),
         tradeScenarios: buildTradeScenarios(analysed),
       };
     } catch (error) {

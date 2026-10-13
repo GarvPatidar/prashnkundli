@@ -71,6 +71,18 @@ export interface PreparedAiAnalysis {
   context:
     GoldScopeAiContext;
 
+  /** Raw engine result for the deterministic decision layer. */
+  marketIntelligence:
+    MarketIntelligenceResult | null;
+
+  sessionContext:
+    ReturnType<
+      typeof sessionService.getContext
+    >;
+
+  delayedMinutes:
+    number | null;
+
   personality:
     PersonalityContext;
 
@@ -157,6 +169,9 @@ interface MarketLoadResult {
   marketIntelligence:
     MarketIntelligenceResult | null;
 
+  delayedMinutes:
+    number | null;
+
   error:
     unknown | null;
 }
@@ -235,6 +250,9 @@ async function loadMarketIntelligence():
         marketIntelligence:
           latest.result,
 
+        delayedMinutes:
+          null,
+
         error:
           null,
       };
@@ -256,6 +274,9 @@ async function loadMarketIntelligence():
       `Market data refresh is delayed. This analysis is about ${ageMinutes} minute(s) old.`;
 
     return {
+      delayedMinutes:
+        ageMinutes,
+
       marketIntelligence: {
         ...latest.result,
 
@@ -290,6 +311,9 @@ async function loadMarketIntelligence():
      */
     return {
       marketIntelligence:
+        null,
+
+      delayedMinutes:
         null,
 
       error,
@@ -516,6 +540,14 @@ export class AiOrchestrationService {
 
       return {
         context,
+
+        marketIntelligence,
+
+        sessionContext:
+          session,
+
+        delayedMinutes:
+          marketLoad.delayedMinutes,
 
         personality,
 

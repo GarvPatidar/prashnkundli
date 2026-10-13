@@ -190,6 +190,39 @@ function containsAny(
   );
 }
 
+
+const OFF_TOPIC_PATTERNS = [
+  "poem",
+  "joke",
+  "recipe",
+  "weather",
+  "write code",
+  "python",
+  "javascript",
+  "homework",
+  "essay",
+  "movie",
+  "song",
+  "cricket score",
+  "bitcoin",
+  "btc",
+  "ethereum",
+  "crypto",
+  "eurusd",
+  "gbpusd",
+  "usdjpy",
+  "nasdaq",
+  "stock tip",
+  "which stock",
+  "who are you",
+] as const;
+
+function isOffTopicMessage(message: string): boolean {
+  return OFF_TOPIC_PATTERNS.some((pattern) =>
+    message.includes(pattern),
+  );
+}
+
 function isCasualMessage(
   message: string,
 ): boolean {
@@ -364,6 +397,15 @@ export function determineCommunicationMode(
     return "POSITION_REVIEW";
   }
 
+  if (
+    !request.attachment &&
+    isOffTopicMessage(
+      normalizeMessage(request.message),
+    )
+  ) {
+    return "CASUAL";
+  }
+
   /*
    * A request for a new trade idea (no position described, no
    * screenshot) is a market question, not a position review.
@@ -418,6 +460,14 @@ export function determineCommunicationMode(
   }
 
   if (
+    /\b(what can you do|what do you do|how do you work|your features|capabilities)\b/.test(
+      message,
+    )
+  ) {
+    return "MARKET_ANALYSIS";
+  }
+
+  if (
     isCasualMessage(
       message,
     )
@@ -434,26 +484,17 @@ export function determineCommunicationMode(
   }
 
   /*
-   * If it contains trading/market related terms, it is a MARKET_ANALYSIS query.
-   * Otherwise, route it as a CASUAL general chat query so it goes to OpenAI dynamically.
+   * Anything a trader might ask is a market question and MUST be answered
+   * from live market data. Only clearly unrelated requests go to the
+   * general (no market data) path, which is scoped and redirects politely.
+   * Defaulting to the general path made real questions such as
+   * "today's high and low" or "M15 bias?" get an answer with no data.
    */
-  const tradingKeywords = [
-    "gold", "xau", "usd", "xauusd", "trade", "trading", "market", "price", "chart",
-    "trend", "buy", "sell", "long", "short", "bull", "bear", "forecast", "signal",
-    "level", "support", "resistance", "indicator", "candle", "analysis", "analyse", "analyze",
-    "outlook", "technical", "fundamental", "liquidity", "volatility",
-    "sona", "sone", "bhav", "rate", "niche", "upar", "uppar", "laya", "liya"
-  ];
-
-  const hasTradingKeywords = tradingKeywords.some((keyword) =>
-    message.includes(keyword),
-  );
-
-  if (hasTradingKeywords) {
-    return "MARKET_ANALYSIS";
+  if (isOffTopicMessage(message)) {
+    return "CASUAL";
   }
 
-  return "CASUAL";
+  return "MARKET_ANALYSIS";
 }
 
 

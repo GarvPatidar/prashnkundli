@@ -1,3 +1,4 @@
+import type { DayStats } from "./day-stats.js";
 import {
   confluenceService,
   type ConfluenceResult,
@@ -46,6 +47,8 @@ export interface MarketIntelligenceResult {
   history?: HistorySummary | null;
   /** Conditional entry / stop / target plans from engine levels. */
   tradeScenarios?: TradeScenarioSet | null;
+  /** Real day / week / session ranges and pivots from candles. */
+  dayStats?: DayStats | null;
   generatedAt: string;
 }
 
