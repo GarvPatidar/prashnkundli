@@ -9,6 +9,23 @@ import {
   type TimeframeRead,
   type WhyCode,
 } from "./decision.service.js";
+import {
+  altPlanLine,
+  footer,
+  makeCtx,
+  pick,
+  positionSide,
+  profileNote,
+  recall,
+  remember,
+  stanceLine,
+  tfStrip,
+  userStance,
+  verdictLead,
+  type ReplyCtx,
+  type Side,
+  type UserContext,
+} from "./personal.js";
 
 /**
  * Turns the deterministic Decision + engine data into trader-style replies.
@@ -43,6 +60,7 @@ export type Intent =
   | "HOLD_EXIT"
   | "WHERE_BUY"
   | "WHERE_SELL"
+  | "DIRECTION"
   | "VERDICT";
 
 export interface ComposeInput {
@@ -54,6 +72,12 @@ export interface ComposeInput {
   session: MarketSessionContext | null;
   /** Set when analysis data is older than normal. */
   delayedMinutes: number | null;
+  /** Logged-in user: name and trading profile, for personal replies. */
+  user?: UserContext | null;
+  /** Conversation id, used to avoid repeating an unchanged plan. */
+  conversationKey?: string | null;
+  /** Assistant replies already in this conversation's context. */
+  contextAssistantCount?: number;
   now?: Date;
 }
 
@@ -153,7 +177,7 @@ export function detectIntent(rawMessage: string): Intent | null {
       !has(m, /\b(stop loss|entry|where to (buy|sell))\b/)) {
     return "LEVELS";
   }
-  if (has(m, /\b(all timeframes|timeframes? agree|confluence|align|m15 bias|h1 bias|h4 bias|d1 bias|daily candle|weekly timeframe)\b/)) {
+  if (has(m, /\b(all timeframes|timeframes? agree|higher (timeframes?|tf)|bade timeframe|htf|confluence|align|m15 bias|h1 bias|h4 bias|d1 bias|daily candle|weekly timeframe)\b/)) {
     return "TIMEFRAMES";
   }
   if (has(m, /\b(rsi|macd|atr|adx|ema|stochastic|overbought|oversold|volatility|volatile|divergence)\b/)) {
@@ -175,6 +199,9 @@ export function detectIntent(rawMessage: string): Intent | null {
   if (has(m, /\b(short answer|one line|in short|brief|tldr)\b/) ||
       (m.split(" ").length <= 3 && has(m, /\b(gold|xau|xauusd|sona)\b/))) {
     return "BRIEF";
+  }
+  if (has(m, /\b(up or down|down or up|bullish (or|ya) bearish|bearish (or|ya) bullish|which side|higher probability|probability|chances?|trend (still|reversed|reversal)|has (it|the trend) reversed|upar ya niche|kidhar jayega|(today'?s?|aaj (ka )?) ?(direction|trend))\b/)) {
+    return "DIRECTION";
   }
   if (
     has(m, /\b(buy|sell|signal|setup|entry|trade|direction|bullish|bearish|up or down|should i|good time|probability|outlook|trend|reversed?|kya karu|lena|sona|upar|niche|jayega|girega|kharid|bech)\b/) ||
@@ -234,13 +261,6 @@ const disclaimer = (lang: Lang): string =>
     lang,
     "Signals are predictions based on market analysis, not guarantees. Don't follow blindly; trade at your own risk.",
     "Signals market analysis par based predictions hain, guarantee nahi. Aankh band karke follow mat karo, apna risk khud manage karo.",
-  );
-
-const calendarNote = (lang: Lang): string =>
-  t(
-    lang,
-    "⚠️ Economic calendar is not connected yet. Check CPI, NFP and Fed events yourself before trading.",
-    "⚠️ Economic calendar abhi connected nahi hai. Trade se pehle CPI, NFP aur Fed events khud check karo.",
   );
 
 function delayedNote(input: ComposeInput, lang: Lang): string | null {
@@ -331,7 +351,8 @@ function sessionLine(input: ComposeInput): string {
 
 /* ------------------------------ reply builders --------------------------- */
 
-function verdictCard(d: Decision, input: ComposeInput, lang: Lang): string {
+function verdictCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx): string {
+  if (ctx.repeat) return repeatCard(d, lang, ctx);
   const out: string[] = [];
   const horizonTag =
     d.horizon === "SCALP"
@@ -340,22 +361,7 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang): string {
         ? t(lang, " (swing view)", " (swing view)")
         : "";
 
-  let headline: string;
-  if (d.marketClosed) {
-    headline = t(lang, "🟡 WAIT — market is closed", "🟡 WAIT — market band hai");
-  } else if (d.action === "BUY") {
-    headline =
-      d.entryState === "NOW"
-        ? t(lang, "🟢 BUY — setup is ready", "🟢 BUY — setup ready hai")
-        : t(lang, "🟢 BUY on pullback — don't chase", "🟢 BUY pullback par — abhi chase mat karo");
-  } else if (d.action === "SELL") {
-    headline =
-      d.entryState === "NOW"
-        ? t(lang, "🔴 SELL — setup is ready", "🔴 SELL — setup ready hai")
-        : t(lang, "🔴 SELL on pullback — don't chase", "🔴 SELL pullback par — abhi chase mat karo");
-  } else {
-    headline = t(lang, "🟡 WAIT — no clean setup yet", "🟡 WAIT — abhi clean setup nahi hai");
-  }
+  const headline = verdictLead(d, ctx);
 
   out.push(`${headline}${horizonTag}`);
   out.push(
@@ -365,7 +371,7 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang): string {
   const delayed = delayedNote(input, lang);
   if (delayed) out.push(delayed);
 
-  out.push("", `🧠 ${t(lang, "Why", "Kyun")}`);
+  out.push("", `🧠 ${pick(lang === "hi" ? ["Kyun", "Mujhe kya dikh raha hai", "Wajah"] : ["Why", "What I'm seeing", "Reasons"], ctx.seed, 2)}`);
   for (const code of d.why.slice(0, 4)) out.push(`• ${why(code, d, lang)}`);
 
   if (d.action !== "WAIT" && d.plan) {
@@ -373,7 +379,13 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang): string {
     out.push(
       d.entryState === "NOW"
         ? t(lang, "Price is at the entry zone and M15 confirms.", "Price entry zone mein hai aur M15 confirm kar raha hai.")
-        : t(lang, "Wait for price to come to the entry zone and confirm on M15.", "Price ke entry zone tak aane ka wait karo aur M15 par confirm dekho."),
+        : pick(
+            lang === "hi"
+              ? ["Price ke entry zone tak aane ka wait karo aur M15 par confirm dekho.", "Price ko khud aane do; entry tabhi jab M15 zone par confirm kare.", "Jaldi nahi: entry tab valid hai jab M15 zone par confirm kare."]
+              : ["Wait for price to come to the entry zone and confirm on M15.", "Let price come to you; take the entry only after an M15 confirmation.", "No rush: the entry is only valid once M15 confirms at the zone."],
+            ctx.seed,
+            3,
+          ),
     );
     out.push(...planLines(d.plan, lang));
   } else {
@@ -406,12 +418,18 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang): string {
     }
   }
 
+  const note = profileNote(d, ctx);
+  if (note) out.push("", note);
+  if (d.action === "WAIT" && d.conviction === "LOW" && !d.marketClosed && ctx.seed % 2 === 0) {
+    out.push("", t(lang, "📸 Send me a chart screenshot and I'll check the structure against this view.", "📸 Chart ka screenshot bhej do, main structure is view se match karke dekh lunga."));
+  }
+
   out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`);
-  out.push("", calendarNote(lang), disclaimer(lang));
+  out.push("", ...footer(ctx, true));
   return out.join("\n");
 }
 
-function whereCard(side: "BUY" | "SELL", d: Decision, input: ComposeInput, lang: Lang): string {
+function whereCard(side: "BUY" | "SELL", d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx): string {
   const plan = d.scenarios.scenarios.find((s) => s.direction === side) ?? null;
   const icon = side === "BUY" ? "🟢" : "🔴";
   const out: string[] = [];
@@ -452,7 +470,9 @@ function whereCard(side: "BUY" | "SELL", d: Decision, input: ComposeInput, lang:
     );
   }
 
-  out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`, "", calendarNote(lang), disclaimer(lang));
+  const wnote = profileNote(d, ctx);
+  if (wnote && plan) out.push("", wnote);
+  out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`, "", ...footer(ctx, true));
   return out.join("\n");
 }
 
@@ -638,7 +658,9 @@ function indicatorCard(d: Decision, input: ComposeInput, lang: Lang): string {
   return out.join("\n");
 }
 
-function holdExitCard(d: Decision, input: ComposeInput, lang: Lang): string {
+function holdExitCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx): string {
+  const mySide = positionSide(input.message);
+  if (mySide) return holdExitSideCard(mySide, d, input, lang, ctx);
   const atr = d.atrH1 ?? 5;
   const { resistances, supports } = nearestLevels(input.result, d.price, atr);
   const s1 = supports[0];
@@ -683,9 +705,98 @@ function holdExitCard(d: Decision, input: ComposeInput, lang: Lang): string {
     out.push("", t(lang, "🌙 Overnight: liquidity is thin in Asia, spreads widen at rollover, and gaps can jump a stop. Use smaller size.", "🌙 Overnight: Asia mein liquidity kam hoti hai, rollover par spread badhta hai aur gap se stop skip ho sakta hai. Size chhota rakho."));
   }
 
-  out.push("", calendarNote(lang), disclaimer(lang));
+  out.push("", t(lang, `${ctx.n}💬 Tell me whether you're in a BUY or a SELL, and your entry price, and I'll give you your exact distance, P&L and a plan for that side only.`, `${ctx.n}💬 Batao aap BUY mein ho ya SELL mein, aur entry price kya hai: main aapka exact P&L, doori aur sirf us side ka plan dunga.`));
+  out.push("", ...footer(ctx, true));
   return out.join("\n");
 }
+
+const allPrices = (message: string): number[] =>
+  [...message.matchAll(/(?<![\d.])(\d{1,2},?\d{3}(?:\.\d+)?)(?![\d])/g)]
+    .map((m) => Number((m[1] ?? "").replace(",", "")))
+    .filter((v) => v >= 1000 && v <= 20000);
+
+function holdExitSideCard(side: Side, d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx): string {
+  const atr = d.atrH1 ?? 5;
+  const { resistances, supports } = nearestLevels(input.result, d.price, atr);
+  const guard = (side === "BUY" ? supports : resistances)[0];
+  const goals = side === "BUY" ? resistances : supports;
+  const g1 = goals[0];
+  const g2 = goals[1];
+  const icon = side === "BUY" ? "🟢" : "🔴";
+  const lean: Side | null = d.lean === "UP" ? "BUY" : d.lean === "DOWN" ? "SELL" : null;
+  const nm = ctx.name ? `${ctx.name}, ` : "";
+  const nums = allPrices(input.message);
+  const wantsTarget = /target|possible|tp\b/i.test(input.message);
+  const entryPx = wantsTarget && nums.length === 1 ? null : (nums[0] ?? null);
+  const targetPx = wantsTarget ? (nums.length > 1 ? nums[1]! : nums.length === 1 ? nums[0]! : null) : null;
+
+  const out: string[] = [
+    t(lang, `🧭 ${icon} Your ${side} position: hold or exit?`, `🧭 ${icon} Aapki ${side} position: hold ya exit?`),
+    `XAU/USD ${fmt(d.price)} · ${tfStrip(d)}`,
+  ];
+
+  let pnl: number | null = null;
+  if (entryPx !== null) {
+    pnl = side === "BUY" ? d.price - entryPx : entryPx - d.price;
+    const x = d.atrH1 ? Math.abs(pnl) / d.atrH1 : null;
+    out.push(
+      `📏 ${pnl >= 0 ? t(lang, "✅ In profit", "✅ Profit mein") : t(lang, "❌ In loss", "❌ Loss mein")}: ${pnl >= 0 ? "+" : ""}${fmt(pnl)} pts ${t(lang, "from", "entry")} ${fmt(entryPx)}${x ? ` (~${fmt(x)} × H1 ATR)` : ""}`,
+    );
+  }
+
+  out.push("");
+  if (lean === side) {
+    out.push(t(lang, `${nm}the trend is with you 👍 the higher timeframes still lean ${dirWord(d.lean)}, so there's no reason to rush out.`, `${nm}trend aapke saath hai 👍 bade timeframe abhi ${dirWord(d.lean)} lean kar rahe hain, bahar bhaagne ki jaldi nahi.`));
+  } else if (lean) {
+    const inProfit = pnl !== null && pnl > 0;
+    out.push(
+      inProfit
+        ? t(lang, `${nm}you're in profit, but the trend is against this ${side} ❌ D1/H4 lean ${dirWord(d.lean)}. Protect what you've made.`, `${nm}aap profit mein ho, par trend is ${side} ke against hai ❌ D1/H4 ${dirWord(d.lean)} lean kar rahe hain. Jo kamaya hai use bachao.`)
+        : t(lang, `${nm}the trend is against this ${side} ❌ D1/H4 lean ${dirWord(d.lean)}. Don't hope: protect capital first.`, `${nm}trend is ${side} ke against hai ❌ D1/H4 ${dirWord(d.lean)} lean kar rahe hain. Umeed par hold mat karo: pehle capital bachao.`),
+    );
+  } else {
+    out.push(t(lang, `${nm}there's no clear edge either way right now, so manage this by your stop, not by hope.`, `${nm}abhi kisi taraf clear edge nahi hai, isliye stop se manage karo, umeed se nahi.`));
+  }
+
+  out.push("");
+  if (guard) {
+    out.push(`• ${t(lang, `Hold while H1 closes ${side === "BUY" ? "above" : "below"} ${fmt(guard.price)}; a close ${side === "BUY" ? "below" : "above"} it means exit or cut.`, `H1 close ${fmt(guard.price)} ke ${side === "BUY" ? "upar" : "neeche"} rahe tak hold; ${side === "BUY" ? "neeche" : "upar"} close ho to exit/cut.`)}`);
+  } else {
+    out.push(`• ${t(lang, "No clean level nearby: respect the stop you set before entering.", "Paas mein clean level nahi: entry se pehle jo stop rakha tha usi ko maano.")}`);
+  }
+  if (g1) out.push(`• 🎯 ${fmt(g1.price)}${g2 ? ` / ${fmt(g2.price)}` : ""}: ${t(lang, `take partial at ${fmt(g1.price)}, then move the stop to breakeven.`, `${fmt(g1.price)} par partial lo, phir stop breakeven par le jao.`)}`);
+  if (lean && lean !== side) {
+    out.push(`• ❌ ${t(lang, "Don't add or average down.", "Add ya average mat karo.")}`);
+    if (pnl !== null && pnl < 0 && entryPx !== null) {
+      out.push(`• ${t(lang, `A bounce back to ${fmt(entryPx)} is a chance to exit flat, not a reason to hold bigger.`, `Price ${fmt(entryPx)} tak wapas aaye to flat exit ka mauka hai, size badhane ka nahi.`)}`);
+    }
+  }
+  if (lean === side && /\b(in (a )?loss|loss mein|nuksan|minus)\b/i.test(input.message) && (pnl === null || pnl < 0)) {
+    out.push(`• ⏳ ${t(lang, "If the trend agrees and you're still in loss, the entry was likely early: hold only while your stop is intact, exit if it breaks.", "Trend saath hai aur phir bhi loss hai, matlab entry thodi jaldi thi: stop intact ho to hold, toot jaye to exit.")}`);
+  }
+  if (/\b(loss|nuksan|minus|revenge|recover)\b/i.test(input.message)) {
+    out.push(`• 🧘 ${t(lang, "Don't increase size to win it back: that's how a small loss becomes a big one.", "Loss wapas pane ke liye size mat badhao: isi se chhota loss bada ban jata hai.")}`);
+  }
+
+  if (targetPx !== null) {
+    const toward = side === "BUY" ? targetPx > d.price : targetPx < d.price;
+    if (toward) {
+      const dist = Math.abs(targetPx - d.price);
+      const between = (side === "BUY" ? resistances : supports).filter((row) => (side === "BUY" ? row.price < targetPx : row.price > targetPx));
+      out.push("", `🎯 ${t(lang, `Target ${fmt(targetPx)} is ${fmt(dist)} pts away${d.atrH1 ? ` (~${fmt(dist / d.atrH1)} × H1 ATR)` : ""}.`, `Target ${fmt(targetPx)} abhi ${fmt(dist)} pts door hai${d.atrH1 ? ` (~${fmt(dist / d.atrH1)} × H1 ATR)` : ""}.`)} ${between.length > 0 ? t(lang, `Levels to clear first: ${between.map((row) => fmt(row.price)).join(", ")}.`, `Pehle ye levels tootne chahiye: ${between.map((row) => fmt(row.price)).join(", ")}.`) : ""} ${t(lang, "Possible, not promised.", "Possible hai, pakka nahi.")}`);
+    }
+  }
+
+  if (/overnight|night|weekend/i.test(input.message)) {
+    out.push("", t(lang, "🌙 Overnight: liquidity is thin in Asia, spreads widen at rollover, and gaps can jump a stop. Use smaller size.", "🌙 Overnight: Asia mein liquidity kam hoti hai, rollover par spread badhta hai aur gap se stop skip ho sakta hai. Size chhota rakho."));
+  }
+  if (entryPx === null && targetPx === null) {
+    out.push("", t(lang, "💬 Tell me your entry price and I'll work out your exact distance and P&L.", "💬 Apna entry price batao, main exact doori aur P&L nikaal dunga."));
+  }
+  out.push("", ...footer(ctx, true));
+  return out.join("\n");
+}
+
 
 function riskCard(d: Decision, input: ComposeInput, lang: Lang): string {
   const msg = input.message.toLowerCase();
@@ -990,16 +1101,12 @@ function priceCheckCard(d: Decision, input: ComposeInput, lang: Lang): string {
     out.push(`⚠️ ${t(lang, `${fmt(target)} is not at an engine level. The nearest real level is ${fmt(nearest.price)} (${nearest.timeframe}), ${fmt(Math.abs(nearest.price - target))} pts away. A round number can matter psychologically, but it isn't a measured level.`, `${fmt(target)} engine ke level par nahi hai. Sabse paas ka real level ${fmt(nearest.price)} (${nearest.timeframe}) hai, ${fmt(Math.abs(nearest.price - target))} pts door. Round number psychological roop se matter kar sakta hai, par ye measured level nahi hai.`)}`);
   }
 
-  if (between.length > 0) {
-    out.push(`${up ? "🔴" : "🟢"} ${t(lang, "Levels on the way", "Raste ke levels")}: ${between.map((row) => fmt(row.price)).join(", ")}`);
+  if (atr && Math.abs(diff) / atr > 8) {
+    out.push(`📏 ${t(lang, `That is far: about ${fmt(Math.abs(diff) / atr)} hourly ranges away. It is a multi-day or multi-week move, not an intraday target.`, `Ye door hai: lagbhag ${fmt(Math.abs(diff) / atr)} hourly range. Ye multi-day ya multi-week move hai, intraday target nahi.`)}`);
   }
 
-  const wantsBuy = /\bbuy|long\b/i.test(input.message);
-  const wantsSell = /\bsell|short\b/i.test(input.message);
-  const side = wantsBuy ? "BUY" : wantsSell ? "SELL" : null;
-  if (side && d.lean !== "FLAT" && /good level|entry/i.test(input.message)) {
-    const against = (side === "BUY" && d.lean === "DOWN") || (side === "SELL" && d.lean === "UP");
-    if (against) out.push(t(lang, `⚠️ A ${side.toLowerCase()} is against the current lean (${dirWord(d.lean)}).`, `⚠️ ${side.toLowerCase()} abhi ke lean (${dirWord(d.lean)}) ke ulta hai.`));
+  if (between.length > 0) {
+    out.push(`${up ? "🔴" : "🟢"} ${t(lang, "Levels on the way", "Raste ke levels")}: ${between.map((row) => fmt(row.price)).join(", ")}`);
   }
 
   if (up && /go to|reach|hit|target|possible|will/i.test(input.message)) {
@@ -1009,6 +1116,92 @@ function priceCheckCard(d: Decision, input: ComposeInput, lang: Lang): string {
   out.push("", `${t(lang, "Current view", "Abhi ka view")}: ${d.action === "WAIT" ? `🟡 WAIT (${dirWord(d.lean)} lean)` : d.action === "BUY" ? "🟢 BUY" : "🔴 SELL"} · ${t(lang, "Conviction", "Conviction")} ${convictionWord(d.conviction, lang)}`, "", disclaimer(lang));
   return out.join("\n");
 }
+
+function repeatCard(d: Decision, lang: Lang, ctx: ReplyCtx): string {
+  const out: string[] = [];
+  const same = pick(
+    lang === "hi"
+      ? ["Plan wahi hai jo pehle bataya tha: H1 par kuch nahi badla.", "Pichhle jawab ke baad kuch nahi badla: plan khada hai.", "View same hai: market ne ise badalne ki wajah nahi di."]
+      : ["Same plan as before: nothing has changed on the H1.", "No change since my last answer: the plan stands.", "Still the same view; the market hasn't given a reason to change it."],
+    ctx.seed,
+    5,
+  );
+  out.push(`${ctx.n}🔁 ${same}`);
+  const icon = d.action === "BUY" ? "🟢" : d.action === "SELL" ? "🔴" : "🟡";
+  out.push(`${icon} ${d.action}${d.action !== "WAIT" && d.entryState === "PULLBACK" ? t(lang, " on pullback", " pullback par") : ""} · ${t(lang, "Conviction", "Conviction")}: ${convictionWord(d.conviction, lang)} · XAU/USD ${fmt(d.price)}`);
+  if (d.plan) {
+    out.push(`📍 ${t(lang, "Entry", "Entry")} ${fmt(d.plan.entry)} · 🛑 ${fmt(d.plan.stopLoss)} · 🎯 ${d.plan.targets.map(fmt).join(" / ")}`);
+    const gap = d.price - d.plan.entry;
+    const x = d.atrH1 ? Math.abs(gap) / d.atrH1 : null;
+    out.push(t(lang, `Price is ${fmt(Math.abs(gap))} pts ${gap > 0 ? "above" : "below"} the entry${x ? ` (~${fmt(x)} × H1 ATR)` : ""}.`, `Price entry se ${fmt(Math.abs(gap))} pts ${gap > 0 ? "upar" : "neeche"} hai${x ? ` (~${fmt(x)} × H1 ATR)` : ""}.`));
+  } else if (d.plans.length > 0) {
+    out.push(`📍 ${d.plans.map((p) => `${p.direction === "BUY" ? "🟢 BUY" : "🔴 SELL"} ${fmt(p.entry)}`).join(" · ")}`);
+  }
+  out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`, "", ...footer(ctx, false));
+  return out.join("\n");
+}
+
+function directionCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx): string {
+  const m = input.message.toLowerCase();
+  const out: string[] = [];
+  const soft = d.conviction === "LOW";
+  const lead =
+    d.lean === "DOWN"
+      ? pick(
+          lang === "hi"
+            ? ["chhota jawab: bearish side bhaari hai 🔴", "bada picture neeche ka hai 🔴", "bade timeframe par sellers control mein hain 🔴"]
+            : ["short answer: bearish has the upper hand 🔴", "the bigger picture leans down 🔴", "sellers are in control on the higher timeframes 🔴"],
+          ctx.seed,
+          7,
+        )
+      : d.lean === "UP"
+        ? pick(
+            lang === "hi"
+              ? ["chhota jawab: bullish side bhaari hai 🟢", "bada picture upar ka hai 🟢", "bade timeframe par buyers control mein hain 🟢"]
+              : ["short answer: bullish has the upper hand 🟢", "the bigger picture leans up 🟢", "buyers are in control on the higher timeframes 🟢"],
+            ctx.seed,
+            7,
+          )
+        : pick(
+            lang === "hi"
+              ? ["abhi koi clear direction nahi ⚪ timeframe ek doosre se alag hain", "abhi coin-flip jaisa market hai ⚪ main edge ka dikhawa nahi karunga"]
+              : ["no clear direction right now ⚪ the timeframes disagree", "it's close to a coin flip at the moment ⚪ I won't pretend there is an edge"],
+            ctx.seed,
+            7,
+          );
+  out.push(`${ctx.n}${soft && d.lean !== "FLAT" ? t(lang, "slight lean, ", "halka lean, ") : ""}${lead}`);
+  out.push(`📊 ${tfStrip(d)} · ${t(lang, "Conviction", "Conviction")}: ${convictionWord(d.conviction, lang)} · XAU/USD ${fmt(d.price)}`);
+
+  const day = input.result.dayStats?.today;
+  if (day && /today|aaj|day|din/.test(m)) {
+    const change = d.price - day.open;
+    out.push(`📅 ${t(lang, "Today", "Aaj")}: ${t(lang, "open", "open")} ${fmt(day.open)} → ${fmt(d.price)} (${change >= 0 ? "+" : ""}${fmt(change)} pts) · ${t(lang, "High", "High")} ${fmt(day.high)} · ${t(lang, "Low", "Low")} ${fmt(day.low)}`);
+  }
+
+  if (/revers|still|trend/.test(m)) {
+    const d1 = dirWord(d.reads.D1.dir);
+    const h4 = dirWord(d.reads.H4.dir);
+    out.push(`🔁 ${t(lang, `D1 is ${d1} and H4 is ${h4}. A real reversal needs both to flip; until then a counter move is a pullback, not a new trend.`, `D1 ${d1} aur H4 ${h4} hai. Asli reversal tab hoga jab dono palten; tab tak ulti move pullback hai, naya trend nahi.`)}`);
+  }
+
+  if (/probab|chance|odds|percent|%/.test(m)) {
+    out.push(`🎲 ${t(lang, `I don't quote a % probability. Conviction ${convictionWord(d.conviction, lang)} is signal strength, not a measured win rate; real hit-rates will come from backtesting.`, `Main % probability nahi deta. Conviction ${convictionWord(d.conviction, lang)} signal ki taakat hai, measured win-rate nahi; asli hit-rate backtest se aayega.`)}`);
+  }
+
+  out.push(
+    "",
+    pick(
+      lang === "hi"
+        ? ["👉 Entry/SL/TP chahiye to bolo: \"give me a signal\".", "👉 Plan dekhna ho to \"trade plan do\" likho.", "👉 Seedha plan: \"entry stop target do\" bolo."]
+        : ["👉 For entry, stop and target, ask: \"give me a signal\".", "👉 Want the plan? Type \"give me a trade plan\".", "👉 For exact levels, ask: \"entry, stop, target\"."],
+      ctx.seed,
+      8,
+    ),
+  );
+  out.push("", ...footer(ctx, false));
+  return out.join("\n");
+}
+
 
 function certaintyNote(d: Decision, lang: Lang): string {
   return t(lang, `No forecast is certain. Current view: ${d.action} · Conviction ${convictionWord(d.conviction, lang)}.`, `Koi forecast pakka nahi hota. Abhi ka view: ${d.action} · Conviction ${convictionWord(d.conviction, lang)}.`);
@@ -1027,6 +1220,8 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
   if (!intent) return null;
 
   const lang = detectLanguage(input.message);
+  const mem = recall(input.conversationKey, input.contextAssistantCount ?? 0);
+  const ctx = makeCtx(input.message, lang, input.user ?? null, mem.replies);
   const decision = decide({
     result: input.result,
     livePrice: input.livePrice,
@@ -1035,6 +1230,11 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
     horizon: detectHorizon(input.message),
     ...(input.now ? { now: input.now } : {}),
   });
+
+  const planSig = decision.plan
+    ? `${decision.action}|${money(decision.plan.entry)}|${money(decision.plan.stopLoss)}`
+    : `${decision.action}|${decision.lean}|${decision.conviction}`;
+  ctx.repeat = intent === "VERDICT" && mem.replies > 0 && mem.sig === planSig;
 
   let text: string;
   switch (intent) {
@@ -1084,24 +1284,55 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
     case "LEVELS":
       text = levelsCard(decision, input, lang);
       break;
-    case "TIMEFRAMES":
+    case "TIMEFRAMES": {
       text = timeframesCard(decision, input, lang);
+      if (/higher|htf|bade/i.test(input.message)) {
+        const asked: Dir = /bearish|neeche|sell|down/i.test(input.message) ? "DOWN" : "UP";
+        const d1 = decision.reads.D1.dir;
+        const h4 = decision.reads.H4.dir;
+        const answer =
+          d1 === h4 && d1 !== "FLAT"
+            ? d1 === asked
+              ? t(lang, `Yes ✅ D1 and H4 are both ${dirWord(d1)}.`, `Haan ✅ D1 aur H4 dono ${dirWord(d1)} hain.`)
+              : t(lang, `No ❌ D1 and H4 are both ${dirWord(d1)}, the opposite of what you're asking.`, `Nahi ❌ D1 aur H4 dono ${dirWord(d1)} hain, aapke sawaal ke ulta.`)
+            : t(lang, `Not cleanly ⚠️ D1 is ${dirWord(d1)} and H4 is ${dirWord(h4)}, so the higher timeframes disagree.`, `Saaf nahi ⚠️ D1 ${dirWord(d1)} aur H4 ${dirWord(h4)} hai, bade timeframe ek mat nahi.`);
+        const lowered = answer.charAt(0).toLowerCase() + answer.slice(1);
+        text = `${ctx.n}${ctx.n ? lowered : answer}\n\n${text}`;
+      }
       break;
+    }
     case "INDICATOR":
       text = indicatorCard(decision, input, lang);
       break;
     case "HOLD_EXIT":
-      text = holdExitCard(decision, input, lang);
+      text = holdExitCard(decision, input, lang, ctx);
       break;
     case "WHERE_BUY":
-      text = whereCard("BUY", decision, input, lang);
+      text = whereCard("BUY", decision, input, lang, ctx);
       break;
     case "WHERE_SELL":
-      text = whereCard("SELL", decision, input, lang);
+      text = whereCard("SELL", decision, input, lang, ctx);
+      break;
+    case "DIRECTION":
+      text = directionCard(decision, input, lang, ctx);
       break;
     default:
-      text = verdictCard(decision, input, lang);
+      text = verdictCard(decision, input, lang, ctx);
   }
+
+  /* Appreciate or push back on the side the user is proposing. */
+  const proposed: Side | null =
+    intent === "WHERE_BUY" ? "BUY" : intent === "WHERE_SELL" ? "SELL" : intent === "VERDICT" || intent === "PRICE_CHECK" ? userStance(input.message) : null;
+  if (proposed) {
+    const stance = stanceLine(proposed, decision, ctx);
+    if (stance) {
+      const alt = ctx.repeat ? null : altPlanLine(proposed, decision, ctx);
+      text = `${stance}${alt ? `\n${alt}` : ""}\n\n${text}`;
+    }
+  }
+
+  const rememberSig = intent === "VERDICT" || intent === "WHERE_BUY" || intent === "WHERE_SELL" ? planSig : null;
+  remember(input.conversationKey, mem, rememberSig);
 
   return { intent, decision, text };
 }

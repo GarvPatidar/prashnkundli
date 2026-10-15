@@ -156,15 +156,20 @@ const HORIZON_STOP: Record<Horizon, number> = {
 
 export function decide(input: DecideInput): Decision {
   const { snapshots } = input.result.marketAnalysis;
+  /*
+   * Live price is used only for distances and entry state. Each timeframe is
+   * read against its own latest close, so the verdict does not flip every
+   * time the quote ticks across an EMA.
+   */
   const price = input.livePrice ?? snapshots.M15.metadata.latestClose;
   const horizon = input.horizon ?? "INTRADAY";
   const now = input.now ?? new Date();
 
   const reads = {
-    M15: readTimeframe("M15", snapshots.M15, price),
-    H1: readTimeframe("H1", snapshots.H1, price),
-    H4: readTimeframe("H4", snapshots.H4, price),
-    D1: readTimeframe("D1", snapshots.D1, price),
+    M15: readTimeframe("M15", snapshots.M15, snapshots.M15.metadata.latestClose),
+    H1: readTimeframe("H1", snapshots.H1, snapshots.H1.metadata.latestClose),
+    H4: readTimeframe("H4", snapshots.H4, snapshots.H4.metadata.latestClose),
+    D1: readTimeframe("D1", snapshots.D1, snapshots.D1.metadata.latestClose),
   };
 
   const htfScore = reads.D1.score * 0.4 + reads.H4.score * 0.6;
