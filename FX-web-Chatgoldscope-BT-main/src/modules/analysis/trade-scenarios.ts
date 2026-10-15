@@ -108,7 +108,7 @@ function pickLevels(
 }
 
 const describe = (level: Level): string =>
-  `${level.timeframe} level, ${level.touches} touches`;
+  `${level.timeframe} level, ${level.touches} ${level.touches === 1 ? "touch" : "touches"}`;
 
 export interface TradeScenarioOptions {
   /** Stop distance beyond the entry level, in H1 ATR units. */
