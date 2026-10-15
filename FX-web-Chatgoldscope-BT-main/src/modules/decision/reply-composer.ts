@@ -193,7 +193,7 @@ export function detectIntent(rawMessage: string): Intent | null {
       has(m, /\bentry for a short\b/)) {
     return "WHERE_SELL";
   }
-  if (has(m, /\b((current|live|latest) (gold )?price|price (now|today|right now)|gold price|what is gold at|gold kitne)\b/)) {
+  if (has(m, /\b((current|live|latest) (gold )?price|price (now|today|right now)|gold'?s? price|price of (gold|xau|xauusd)|(xau|xauusd) price|how much is gold|what is gold at|gold kitne|gold ka (rate|price))\b/)) {
     return "PRICE";
   }
   if (has(m, /\b(short answer|one line|in short|brief|tldr)\b/) ||
@@ -705,6 +705,11 @@ function holdExitCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCt
     out.push("", t(lang, "🌙 Overnight: liquidity is thin in Asia, spreads widen at rollover, and gaps can jump a stop. Use smaller size.", "🌙 Overnight: Asia mein liquidity kam hoti hai, rollover par spread badhta hai aur gap se stop skip ho sakta hai. Size chhota rakho."));
   }
 
+
+  if (/breakeven|break even|sl to be\b|move (my )?(sl|stop)/i.test(input.message)) {
+    out.push("", t(lang, `🧷 Breakeven rule: move the stop to entry only after TP1/1R is hit or an H1 candle closes beyond your entry in your favour. Earlier than that, normal noise (H1 ATR ~${fmt(d.atrH1)} pts) tends to stop you out of a good trade.`, `🧷 Breakeven rule: stop ko entry par tabhi lao jab TP1/1R lag jaye ya H1 candle aapke favour mein entry ke paar close ho. Usse pehle normal noise (H1 ATR ~${fmt(d.atrH1)} pts) achhe trade ko bhi stop kar deta hai.`));
+  }
+
   out.push("", t(lang, `${ctx.n}💬 Tell me whether you're in a BUY or a SELL, and your entry price, and I'll give you your exact distance, P&L and a plan for that side only.`, `${ctx.n}💬 Batao aap BUY mein ho ya SELL mein, aur entry price kya hai: main aapka exact P&L, doori aur sirf us side ka plan dunga.`));
   out.push("", ...footer(ctx, true));
   return out.join("\n");
@@ -740,7 +745,7 @@ function holdExitSideCard(side: Side, d: Decision, input: ComposeInput, lang: La
     pnl = side === "BUY" ? d.price - entryPx : entryPx - d.price;
     const x = d.atrH1 ? Math.abs(pnl) / d.atrH1 : null;
     out.push(
-      `📏 ${pnl >= 0 ? t(lang, "✅ In profit", "✅ Profit mein") : t(lang, "❌ In loss", "❌ Loss mein")}: ${pnl >= 0 ? "+" : ""}${fmt(pnl)} pts ${t(lang, "from", "entry")} ${fmt(entryPx)}${x ? ` (~${fmt(x)} × H1 ATR)` : ""}`,
+      `📏 ${pnl >= 0 ? t(lang, "✅ In profit", "✅ Profit mein") : t(lang, "❌ In loss", "❌ Loss mein")}: ${pnl >= 0 ? "+" : ""}${fmt(pnl)} pts ${t(lang, `from ${fmt(entryPx)}`, `(entry ${fmt(entryPx)} se)`)}${x ? ` (~${fmt(x)} × H1 ATR)` : ""}`,
     );
   }
 
@@ -790,6 +795,11 @@ function holdExitSideCard(side: Side, d: Decision, input: ComposeInput, lang: La
   if (/overnight|night|weekend/i.test(input.message)) {
     out.push("", t(lang, "🌙 Overnight: liquidity is thin in Asia, spreads widen at rollover, and gaps can jump a stop. Use smaller size.", "🌙 Overnight: Asia mein liquidity kam hoti hai, rollover par spread badhta hai aur gap se stop skip ho sakta hai. Size chhota rakho."));
   }
+
+  if (/breakeven|break even|sl to be\b|move (my )?(sl|stop)/i.test(input.message)) {
+    out.push("", t(lang, `🧷 Breakeven rule: move the stop to entry only after TP1/1R is hit or an H1 candle closes beyond your entry in your favour. Earlier than that, normal noise (H1 ATR ~${fmt(d.atrH1)} pts) tends to stop you out of a good trade.`, `🧷 Breakeven rule: stop ko entry par tabhi lao jab TP1/1R lag jaye ya H1 candle aapke favour mein entry ke paar close ho. Usse pehle normal noise (H1 ATR ~${fmt(d.atrH1)} pts) achhe trade ko bhi stop kar deta hai.`));
+  }
+
   if (entryPx === null && targetPx === null) {
     out.push("", t(lang, "💬 Tell me your entry price and I'll work out your exact distance and P&L.", "💬 Apna entry price batao, main exact doori aur P&L nikaal dunga."));
   }
@@ -831,7 +841,12 @@ function riskCard(d: Decision, input: ComposeInput, lang: Lang): string {
     out.push(`✅ ${t(lang, `Risk = ${pct}% of $${money(first)} = $${money(riskDollars)} per trade.`, `Risk = $${money(first)} ka ${pct}% = $${money(riskDollars)} per trade.`)}`);
     if (plan) {
       const lotsFor = riskDollars / (plan.riskPoints * 100);
-      out.push(t(lang, `With the current plan's stop (${fmt(plan.riskPoints)} pts): ${lotsFor.toFixed(2)} lot.`, `Current plan ke stop (${fmt(plan.riskPoints)} pts) par: ${lotsFor.toFixed(2)} lot.`));
+      if (lotsFor < 0.01) {
+        const minRisk = plan.riskPoints;
+        out.push(t(lang, `⚠️ With the current plan's stop (${fmt(plan.riskPoints)} pts) the size works out to ${lotsFor.toFixed(3)} lot, below the usual 0.01 minimum. The smallest trade (0.01 lot) would risk about $${fmt(minRisk)} (${fmt((minRisk / first) * 100)}% of the account), more than your ${pct}%. Skip this setup, wait for a tighter stop, or use a cent/micro account.`, `⚠️ Current plan ke stop (${fmt(plan.riskPoints)} pts) par size ${lotsFor.toFixed(3)} lot aata hai, jo 0.01 minimum se kam hai. Sabse chhota trade (0.01 lot) lagbhag $${fmt(minRisk)} (account ka ${fmt((minRisk / first) * 100)}%) risk karega, aapke ${pct}% se zyada. Ye setup skip karo, tighter stop ka wait karo, ya cent/micro account use karo.`));
+      } else {
+        out.push(t(lang, `With the current plan's stop (${fmt(plan.riskPoints)} pts): ${lotsFor.toFixed(2)} lot.`, `Current plan ke stop (${fmt(plan.riskPoints)} pts) par: ${lotsFor.toFixed(2)} lot.`));
+      }
     }
     out.push(t(lang, "Tell me a different stop distance in points and divide: lot = risk $ ÷ (points × 100).", "Alag stop distance ho to formula lagao: lot = risk $ ÷ (points × 100)."));
   } else if (pct !== null && first === undefined && /risk/.test(msg)) {
@@ -1135,7 +1150,9 @@ function repeatCard(d: Decision, lang: Lang, ctx: ReplyCtx): string {
     const x = d.atrH1 ? Math.abs(gap) / d.atrH1 : null;
     out.push(t(lang, `Price is ${fmt(Math.abs(gap))} pts ${gap > 0 ? "above" : "below"} the entry${x ? ` (~${fmt(x)} × H1 ATR)` : ""}.`, `Price entry se ${fmt(Math.abs(gap))} pts ${gap > 0 ? "upar" : "neeche"} hai${x ? ` (~${fmt(x)} × H1 ATR)` : ""}.`));
   } else if (d.plans.length > 0) {
-    out.push(`📍 ${d.plans.map((p) => `${p.direction === "BUY" ? "🟢 BUY" : "🔴 SELL"} ${fmt(p.entry)}`).join(" · ")}`);
+    for (const p of d.plans) {
+      out.push(`📍 ${p.direction === "BUY" ? "🟢 BUY" : "🔴 SELL"} ${fmt(p.entry)} · 🛑 ${fmt(p.stopLoss)} · 🎯 ${p.targets.map(fmt).join(" / ")} · 1:${fmt(p.riskReward[0])}`);
+    }
   }
   out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`, "", ...footer(ctx, false));
   return out.join("\n");
@@ -1169,7 +1186,21 @@ function directionCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyC
             ctx.seed,
             7,
           );
-  out.push(`${ctx.n}${soft && d.lean !== "FLAT" ? t(lang, "slight lean, ", "halka lean, ") : ""}${lead}`);
+  if (soft && d.lean !== "FLAT") {
+    const shortDir = d.reads.H1.dir === d.reads.M15.dir ? d.reads.H1.dir : "FLAT";
+    const against = shortDir !== "FLAT" && shortDir !== d.lean;
+    const leanWord = dirWord(d.lean);
+    const icon = d.lean === "DOWN" ? "🔴" : "🟢";
+    out.push(
+      `${ctx.n}${
+        against
+          ? t(lang, `slightly ${leanWord} ${icon}, but not a trade yet: H1 and M15 are ${dirWord(shortDir)} against the bigger picture, so it's a bounce inside the trend`, `halka ${leanWord} ${icon}, par abhi trade nahi: H1 aur M15 ${dirWord(shortDir)} hain bade picture ke against, yaani trend ke andar ek bounce`)
+          : t(lang, `slightly ${leanWord} ${icon}, but conviction is low, so not a trade yet`, `halka ${leanWord} ${icon}, par conviction kam hai, isliye abhi trade nahi`)
+      }`,
+    );
+  } else {
+    out.push(`${ctx.n}${lead}`);
+  }
   out.push(`📊 ${tfStrip(d)} · ${t(lang, "Conviction", "Conviction")}: ${convictionWord(d.conviction, lang)} · XAU/USD ${fmt(d.price)}`);
 
   const day = input.result.dayStats?.today;
@@ -1232,9 +1263,11 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
   });
 
   const planSig = decision.plan
-    ? `${decision.action}|${money(decision.plan.entry)}|${money(decision.plan.stopLoss)}`
-    : `${decision.action}|${decision.lean}|${decision.conviction}`;
-  ctx.repeat = intent === "VERDICT" && mem.replies > 0 && mem.sig === planSig;
+    ? `${decision.action}|${decision.horizon}|${money(decision.plan.entry)}|${money(decision.plan.stopLoss)}`
+    : `${decision.action}|${decision.horizon}|${decision.lean}|${decision.conviction}`;
+  /* Only a plain "buy or sell?" repeat is shortened; asks for levels, RR or a scalp/swing view get the full card. */
+  const wantsDetail = /\b(entry|stop|target|tp|sl|risk.?reward|rr|scalp|swing|setup|plan|levels?)\b/i.test(input.message);
+  ctx.repeat = intent === "VERDICT" && mem.replies > 0 && mem.sig === planSig && !wantsDetail;
 
   let text: string;
   switch (intent) {
