@@ -4,6 +4,8 @@ import {
 } from "./answer-guard.js";
 
 import { marketProvider } from "../../providers.js";
+import { AuthRepository } from "../auth/auth.repository.js";
+import type { UserContext } from "../decision/personal.js";
 
 import {
   composeDecisionReply,
@@ -679,9 +681,39 @@ async function readLiveQuote(): Promise<{
   }
 }
 
+const userContextRepository = new AuthRepository();
+const USER_CONTEXT_TTL_MS = 10 * 60_000;
+const userContextCache = new Map<string, { at: number; value: UserContext | null }>();
+
+/* Name and trading profile for personal replies. Never blocks a reply. */
+async function loadUserContext(userId: string): Promise<UserContext | null> {
+  const cached = userContextCache.get(userId);
+  if (cached && Date.now() - cached.at < USER_CONTEXT_TTL_MS) return cached.value;
+
+  let value: UserContext | null = null;
+  try {
+    const user = await userContextRepository.findUserById(userId);
+    if (user) {
+      value = {
+        name: user.fullName ?? null,
+        experience: user.profile?.experienceLevel ?? null,
+        style: user.profile?.tradingStyle ?? null,
+        risk: user.profile?.riskTolerance ?? null,
+      };
+    }
+  } catch {
+    value = null;
+  }
+
+  if (userContextCache.size > 1000) userContextCache.clear();
+  userContextCache.set(userId, { at: Date.now(), value });
+  return value;
+}
+
 async function tryComposeDecisionReply(
   prepared: PreparedAiAnalysis,
   request: ChatRequest,
+  userId: string,
 ): Promise<ComposedReply | null> {
   if (
     !prepared.metadata.marketAvailable ||
@@ -692,9 +724,12 @@ async function tryComposeDecisionReply(
     return null;
   }
 
-  const live = await readLiveQuote();
+  const [live, user] = await Promise.all([readLiveQuote(), loadUserContext(userId)]);
 
   return composeDecisionReply({
+    user,
+    conversationKey: request.conversationId ?? null,
+    contextAssistantCount: (request.conversationContext ?? []).filter((m) => m.role === "assistant").length,
     message: request.message,
     result: prepared.marketIntelligence,
     livePrice: live.price,
@@ -829,6 +864,7 @@ export class AiResponseService {
         await tryComposeDecisionReply(
           prepared,
           input.request,
+          input.userId,
         );
 
       if (composed) {
