@@ -1,5 +1,6 @@
 import { buildApp } from "./app.js";
 import { env } from "./config.js";
+import { marketIntelligenceOrchestrator } from "./modules/analysis/market-intelligence-orchestrator.service.js";
 
 const app =
   buildApp();
@@ -63,5 +64,18 @@ process.on(
     );
   },
 );
+
+/*
+ * Optional background refresh so signals are logged and tracked even when
+ * nobody is chatting. Each refresh costs 4 Twelve Data credits, so it is off
+ * unless SIGNAL_TRACKER_INTERVAL_MIN is set (30 = ~192 credits/day).
+ */
+const trackerMinutes = Number(process.env.SIGNAL_TRACKER_INTERVAL_MIN ?? 0);
+
+if (Number.isFinite(trackerMinutes) && trackerMinutes >= 5) {
+  setInterval(() => {
+    void marketIntelligenceOrchestrator.getLatest().catch(() => undefined);
+  }, trackerMinutes * 60_000).unref();
+}
 
 void startServer();

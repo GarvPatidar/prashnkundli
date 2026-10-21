@@ -6,11 +6,14 @@ import {
 import { marketProvider } from "../../providers.js";
 import { AuthRepository } from "../auth/auth.repository.js";
 import type { UserContext } from "../decision/personal.js";
+import { decide } from "../decision/decision.service.js";
+import { activeBlackout } from "../calendar/static-calendar.js";
 
 import {
   composeDecisionReply,
   composeStaticReply,
   type ComposedReply,
+  outlookFromDecision,
 } from "../decision/reply-composer.js";
 import type {
   ChatRequest,
@@ -975,6 +978,53 @@ export class AiResponseService {
     }
 
     /*
+     * One verdict everywhere: the card's bias, action, confidence and
+     * headline come from the same decision as the chat replies, so the
+     * outlook card can never say "strong bullish" while the chat says WAIT.
+     */
+    let engineNote: string | null = null;
+
+    if (
+      prepared.metadata.marketAvailable &&
+      prepared.marketIntelligence
+    ) {
+      try {
+        const live = await readLiveQuote();
+        const outlook = outlookFromDecision(
+          decide({
+            result: prepared.marketIntelligence,
+            livePrice: live.price,
+            marketClosed: live.marketClosed,
+            riskScore: prepared.metadata.riskScore,
+            stabilize: true,
+            newsBlackout: activeBlackout(new Date()),
+          }),
+        );
+
+        engineNote = outlook.engineLine;
+
+        response = {
+          ...response,
+          headline: outlook.headline,
+          decision: outlook.decisionState,
+          action: outlook.action,
+          confidence: null,
+          nextStep: outlook.nextStep,
+          ...(input.request.attachment
+            ? {
+                summary: `${outlook.engineLine} Entries, stops and targets below are engine levels from live candles, not lines taken from your drawing. ${response.summary}`,
+              }
+            : {
+                summary: outlook.summary,
+                whatMarketIsShowing: outlook.summary,
+              }),
+        };
+      } catch (error) {
+        console.warn("[decision-align] skipped:", error);
+      }
+    }
+
+    /*
      * Without a screenshot or supplied position there is nothing
      * to say about a position, so do not show a note about it.
      */
@@ -994,7 +1044,7 @@ export class AiResponseService {
         input.request,
       );
 
-    const message =
+    const baseMessage =
       !prepared.metadata
         .marketAvailable
         ? buildDegradedMessage(
@@ -1017,6 +1067,13 @@ export class AiResponseService {
               analysis,
               prepared,
             );
+
+    const message =
+      engineNote &&
+      responseMode !== "ANALYSIS" &&
+      !input.request.attachment
+        ? `${baseMessage}\n\n📊 ${engineNote}`
+        : baseMessage;
 
     return {
       analysis,

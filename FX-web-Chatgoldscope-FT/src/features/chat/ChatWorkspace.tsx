@@ -47,6 +47,8 @@ import {
   GoldScopeAnalysisCard,
 } from "./components/GoldScopeAnalysisCard";
 
+import { FeedbackButtons } from "@/features/feedback/FeedbackButtons";
+
 import {
   GoldScopeChatResponse,
 } from "./components/GoldScopeChatResponse";
@@ -630,10 +632,12 @@ export function ChatWorkspace() {
 
   const renderConversationalMessage = (chatMessage: ChatMessage) => {
     return (
-      <GoldScopeChatResponse
-        key={chatMessage.id}
-        content={chatMessage.content}
-      />
+      <div key={chatMessage.id}>
+        <GoldScopeChatResponse content={chatMessage.content} />
+        {chatMessage.status === "completed" && chatMessage.content ? (
+          <FeedbackButtons messageId={chatMessage.id} />
+        ) : null}
+      </div>
     );
   };
 

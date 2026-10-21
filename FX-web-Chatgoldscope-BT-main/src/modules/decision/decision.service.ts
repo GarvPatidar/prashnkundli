@@ -1,3 +1,4 @@
+import type { NewsBlackout } from "../calendar/static-calendar.js";
 import type { CompleteIndicatorSnapshot } from "../indicators/indicator.service.js";
 import type { MarketIntelligenceResult } from "../analysis/market-intelligence.service.js";
 import {
@@ -57,6 +58,8 @@ export interface Decision {
   /** Next H1 candle close, when this view is refreshed. */
   validUntil: string;
   lowRewardToRisk: boolean;
+  /** Set while a US high-impact release is close; forces WAIT. */
+  blackout: NewsBlackout | null;
 }
 
 export type WhyCode =
@@ -76,7 +79,8 @@ export type WhyCode =
   | "NO_CLEAN_LEVEL"
   | "LOW_RR"
   | "RISK_ELEVATED"
-  | "MARKET_CLOSED";
+  | "MARKET_CLOSED"
+  | "NEWS_BLACKOUT";
 
 const dirOf = (score: number, threshold = 0.3): Dir =>
   score >= threshold ? "UP" : score <= -threshold ? "DOWN" : "FLAT";
@@ -146,6 +150,13 @@ export interface DecideInput {
   riskScore?: number | null;
   horizon?: Horizon;
   now?: Date;
+  /** Active high-impact event window, from the macro calendar. */
+  newsBlackout?: NewsBlackout | null;
+  /**
+   * Keep the verdict stable until the next H1 candle (production chat path).
+   * Leave off for backtests and replays, which must be stateless.
+   */
+  stabilize?: boolean;
 }
 
 const HORIZON_STOP: Record<Horizon, number> = {
@@ -154,7 +165,7 @@ const HORIZON_STOP: Record<Horizon, number> = {
   SWING: 1.5,
 };
 
-export function decide(input: DecideInput): Decision {
+function computeDecision(input: DecideInput): Decision {
   const { snapshots } = input.result.marketAnalysis;
   /*
    * Live price is used only for distances and entry state. Each timeframe is
@@ -240,6 +251,12 @@ export function decide(input: DecideInput): Decision {
     conviction = "LOW";
   }
 
+  const blackout = input.newsBlackout ?? null;
+  if (blackout) {
+    why.unshift("NEWS_BLACKOUT");
+    conviction = "LOW";
+  }
+
   const scenarios = buildTradeScenarios(input.result, {
     stopBufferAtr: HORIZON_STOP[horizon],
     referencePrice: price,
@@ -305,5 +322,77 @@ export function decide(input: DecideInput): Decision {
     marketClosed,
     validUntil: nextH1Close(now),
     lowRewardToRisk,
+    blackout,
   };
+}
+
+
+/* ------------------------------- hysteresis ------------------------------ */
+
+interface Committed {
+  hourKey: string;
+  decision: Decision;
+}
+
+/** One committed setup per horizon. The market is one symbol, so this is global. */
+const committed = new Map<Horizon, Committed>();
+
+/** Exposed for tests only. */
+export function resetDecisionState(): void {
+  committed.clear();
+}
+
+/**
+ * The setup (direction, conviction, plan levels, reasons) is locked for the
+ * whole H1 candle, so a trader who asks twice in the same hour gets the same
+ * verdict and the same entry. Only live parts move: price, ATR and the entry
+ * state. The lock is released immediately when the idea is broken (stop
+ * breached, a big move) or when safety changes (market closed, risk raised).
+ */
+function stabilize(fresh: Decision): Decision {
+  const key = fresh.horizon;
+  const hourKey = fresh.validUntil;
+  const previous = committed.get(key);
+
+  const commit = (): Decision => {
+    committed.set(key, { hourKey, decision: fresh });
+    return fresh;
+  };
+
+  if (!previous || previous.hourKey !== hourKey) return commit();
+
+  const locked = previous.decision;
+  const atr = fresh.atrH1 ?? locked.atrH1 ?? 0;
+
+  const bigMove = atr > 0 && Math.abs(fresh.price - locked.price) > atr * 1.5;
+  const stopBreached =
+    locked.plan !== null &&
+    atr > 0 &&
+    ((locked.plan.direction === "SELL" && fresh.price > locked.plan.stopLoss + atr * 0.25) ||
+      (locked.plan.direction === "BUY" && fresh.price < locked.plan.stopLoss - atr * 0.25));
+  const safetyChanged =
+    fresh.marketClosed !== locked.marketClosed ||
+    Boolean(fresh.blackout) !== Boolean(locked.blackout) ||
+    (fresh.why.includes("RISK_ELEVATED") && !locked.why.includes("RISK_ELEVATED"));
+
+  if (bigMove || stopBreached || safetyChanged) return commit();
+
+  let entryState = locked.entryState;
+  if (locked.action !== "WAIT" && locked.plan && atr > 0) {
+    const near = Math.abs(fresh.price - locked.plan.entry) <= atr * 0.35;
+    entryState = near && fresh.reads.M15.dir === locked.lean ? "NOW" : "PULLBACK";
+  }
+
+  return {
+    ...locked,
+    price: fresh.price,
+    atrH1: fresh.atrH1 ?? locked.atrH1,
+    entryState,
+    validUntil: fresh.validUntil,
+  };
+}
+
+export function decide(input: DecideInput): Decision {
+  const fresh = computeDecision(input);
+  return input.stabilize ? stabilize(fresh) : fresh;
 }

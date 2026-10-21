@@ -16,10 +16,10 @@
  */
 
 import * as runtime from "@prisma/client/runtime/client"
-import type * as Prisma from "../models.js"
-import { type PrismaClient } from "./class.js"
+import type * as Prisma from "../models.ts"
+import { type PrismaClient } from "./class.ts"
 
-export type * from '../models.js'
+export type * from '../models.ts'
 
 export type DMMF = typeof runtime.DMMF
 
@@ -403,7 +403,10 @@ export const ModelName = {
   OtpCode: 'OtpCode',
   Conversation: 'Conversation',
   Message: 'Message',
-  MarketSnapshot: 'MarketSnapshot'
+  MarketSnapshot: 'MarketSnapshot',
+  Signal: 'Signal',
+  MessageFeedback: 'MessageFeedback',
+  JournalTrade: 'JournalTrade'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -419,7 +422,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "traderProfile" | "userSession" | "otpCode" | "conversation" | "message" | "marketSnapshot"
+    modelProps: "user" | "traderProfile" | "userSession" | "otpCode" | "conversation" | "message" | "marketSnapshot" | "signal" | "messageFeedback" | "journalTrade"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -941,6 +944,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    Signal: {
+      payload: Prisma.$SignalPayload<ExtArgs>
+      fields: Prisma.SignalFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SignalFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SignalFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+        }
+        findFirst: {
+          args: Prisma.SignalFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SignalFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+        }
+        findMany: {
+          args: Prisma.SignalFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>[]
+        }
+        create: {
+          args: Prisma.SignalCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+        }
+        createMany: {
+          args: Prisma.SignalCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SignalCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>[]
+        }
+        delete: {
+          args: Prisma.SignalDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+        }
+        update: {
+          args: Prisma.SignalUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+        }
+        deleteMany: {
+          args: Prisma.SignalDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SignalUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SignalUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>[]
+        }
+        upsert: {
+          args: Prisma.SignalUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SignalPayload>
+        }
+        aggregate: {
+          args: Prisma.SignalAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSignal>
+        }
+        groupBy: {
+          args: Prisma.SignalGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SignalGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SignalCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SignalCountAggregateOutputType> | number
+        }
+      }
+    }
+    MessageFeedback: {
+      payload: Prisma.$MessageFeedbackPayload<ExtArgs>
+      fields: Prisma.MessageFeedbackFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MessageFeedbackFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MessageFeedbackFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>
+        }
+        findFirst: {
+          args: Prisma.MessageFeedbackFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MessageFeedbackFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>
+        }
+        findMany: {
+          args: Prisma.MessageFeedbackFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>[]
+        }
+        create: {
+          args: Prisma.MessageFeedbackCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>
+        }
+        createMany: {
+          args: Prisma.MessageFeedbackCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MessageFeedbackCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>[]
+        }
+        delete: {
+          args: Prisma.MessageFeedbackDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>
+        }
+        update: {
+          args: Prisma.MessageFeedbackUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>
+        }
+        deleteMany: {
+          args: Prisma.MessageFeedbackDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MessageFeedbackUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MessageFeedbackUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>[]
+        }
+        upsert: {
+          args: Prisma.MessageFeedbackUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MessageFeedbackPayload>
+        }
+        aggregate: {
+          args: Prisma.MessageFeedbackAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMessageFeedback>
+        }
+        groupBy: {
+          args: Prisma.MessageFeedbackGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MessageFeedbackGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MessageFeedbackCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MessageFeedbackCountAggregateOutputType> | number
+        }
+      }
+    }
+    JournalTrade: {
+      payload: Prisma.$JournalTradePayload<ExtArgs>
+      fields: Prisma.JournalTradeFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.JournalTradeFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.JournalTradeFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>
+        }
+        findFirst: {
+          args: Prisma.JournalTradeFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.JournalTradeFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>
+        }
+        findMany: {
+          args: Prisma.JournalTradeFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>[]
+        }
+        create: {
+          args: Prisma.JournalTradeCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>
+        }
+        createMany: {
+          args: Prisma.JournalTradeCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.JournalTradeCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>[]
+        }
+        delete: {
+          args: Prisma.JournalTradeDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>
+        }
+        update: {
+          args: Prisma.JournalTradeUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>
+        }
+        deleteMany: {
+          args: Prisma.JournalTradeDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.JournalTradeUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.JournalTradeUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>[]
+        }
+        upsert: {
+          args: Prisma.JournalTradeUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$JournalTradePayload>
+        }
+        aggregate: {
+          args: Prisma.JournalTradeAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateJournalTrade>
+        }
+        groupBy: {
+          args: Prisma.JournalTradeGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.JournalTradeGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.JournalTradeCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.JournalTradeCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1089,6 +1314,70 @@ export const MarketSnapshotScalarFieldEnum = {
 } as const
 
 export type MarketSnapshotScalarFieldEnum = (typeof MarketSnapshotScalarFieldEnum)[keyof typeof MarketSnapshotScalarFieldEnum]
+
+
+export const SignalScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  horizon: 'horizon',
+  direction: 'direction',
+  conviction: 'conviction',
+  entryState: 'entryState',
+  priceAtIssue: 'priceAtIssue',
+  entry: 'entry',
+  stopLoss: 'stopLoss',
+  tp1: 'tp1',
+  tp2: 'tp2',
+  riskReward1: 'riskReward1',
+  expiresAt: 'expiresAt',
+  maxHoldUntil: 'maxHoldUntil',
+  status: 'status',
+  triggeredAt: 'triggeredAt',
+  closedAt: 'closedAt',
+  exitPrice: 'exitPrice',
+  resultR: 'resultR',
+  tp2Hit: 'tp2Hit',
+  dedupeKey: 'dedupeKey',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SignalScalarFieldEnum = (typeof SignalScalarFieldEnum)[keyof typeof SignalScalarFieldEnum]
+
+
+export const MessageFeedbackScalarFieldEnum = {
+  id: 'id',
+  messageId: 'messageId',
+  userId: 'userId',
+  rating: 'rating',
+  reason: 'reason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MessageFeedbackScalarFieldEnum = (typeof MessageFeedbackScalarFieldEnum)[keyof typeof MessageFeedbackScalarFieldEnum]
+
+
+export const JournalTradeScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  signalId: 'signalId',
+  direction: 'direction',
+  entry: 'entry',
+  stopLoss: 'stopLoss',
+  takeProfit: 'takeProfit',
+  lots: 'lots',
+  status: 'status',
+  exitPrice: 'exitPrice',
+  pnlPoints: 'pnlPoints',
+  note: 'note',
+  openedAt: 'openedAt',
+  closedAt: 'closedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type JournalTradeScalarFieldEnum = (typeof JournalTradeScalarFieldEnum)[keyof typeof JournalTradeScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1299,6 +1588,20 @@ export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
 
 
 /**
+ * Reference to a field of type 'SignalDirection'
+ */
+export type EnumSignalDirectionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SignalDirection'>
+    
+
+
+/**
+ * Reference to a field of type 'SignalDirection[]'
+ */
+export type ListEnumSignalDirectionFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SignalDirection[]'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -1309,6 +1612,48 @@ export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, '
  * Reference to a field of type 'Float[]'
  */
 export type ListFloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float[]'>
+    
+
+
+/**
+ * Reference to a field of type 'SignalStatus'
+ */
+export type EnumSignalStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SignalStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'SignalStatus[]'
+ */
+export type ListEnumSignalStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SignalStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'FeedbackRating'
+ */
+export type EnumFeedbackRatingFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'FeedbackRating'>
+    
+
+
+/**
+ * Reference to a field of type 'FeedbackRating[]'
+ */
+export type ListEnumFeedbackRatingFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'FeedbackRating[]'>
+    
+
+
+/**
+ * Reference to a field of type 'JournalStatus'
+ */
+export type EnumJournalStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'JournalStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'JournalStatus[]'
+ */
+export type ListEnumJournalStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'JournalStatus[]'>
     
 
 /**
@@ -1469,6 +1814,9 @@ export type GlobalOmitConfig = {
   conversation?: Prisma.ConversationOmit
   message?: Prisma.MessageOmit
   marketSnapshot?: Prisma.MarketSnapshotOmit
+  signal?: Prisma.SignalOmit
+  messageFeedback?: Prisma.MessageFeedbackOmit
+  journalTrade?: Prisma.JournalTradeOmit
 }
 
 /* Types for Logging */
