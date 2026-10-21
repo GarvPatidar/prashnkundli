@@ -258,11 +258,13 @@ export function profileNote(d: Decision, ctx: ReplyCtx): string | null {
 
 /* --------------------------------- footers ------------------------------- */
 
-export function footer(ctx: ReplyCtx, includeCalendar: boolean): string[] {
+export function footer(ctx: ReplyCtx, includeCalendar: boolean, calendarLine?: string | null): string[] {
   const full = ctx.replies === 0 || ctx.replies % 4 === 0;
   const hi = ctx.lang === "hi";
   const out: string[] = [];
-  if (includeCalendar) {
+  if (includeCalendar && calendarLine) {
+    out.push(calendarLine);
+  } else if (includeCalendar) {
     out.push(
       full
         ? hi
@@ -289,6 +291,11 @@ export function footer(ctx: ReplyCtx, includeCalendar: boolean): string[] {
 
 export function verdictLead(d: Decision, ctx: ReplyCtx): string {
   const { n, lang, seed } = ctx;
+  if (d.blackout) {
+    return lang === "hi"
+      ? `${n}🟡 ${d.blackout.name} ka window chal raha hai: abhi naya trade nahi, spread aur volatility spike hoti hai`
+      : `${n}🟡 ${d.blackout.name} window is live: no new trade right now, spreads and volatility spike`;
+  }
   if (d.marketClosed) {
     return lang === "hi" ? `${n}🟡 Market abhi band hai: naya trade nahi, open hone ka wait karo` : `${n}🟡 The market is closed: no new trade, wait for the open`;
   }

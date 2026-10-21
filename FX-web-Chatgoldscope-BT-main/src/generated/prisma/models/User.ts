@@ -9,8 +9,8 @@
  * 🟢 You can import this file directly.
  */
 import type * as runtime from "@prisma/client/runtime/client"
-import type * as $Enums from "../enums.js"
-import type * as Prisma from "../internal/prismaNamespace.js"
+import type * as $Enums from "../enums.ts"
+import type * as Prisma from "../internal/prismaNamespace.ts"
 
 /**
  * Model User
@@ -250,6 +250,8 @@ export type UserWhereInput = {
   sessions?: Prisma.UserSessionListRelationFilter
   otpCodes?: Prisma.OtpCodeListRelationFilter
   conversations?: Prisma.ConversationListRelationFilter
+  feedback?: Prisma.MessageFeedbackListRelationFilter
+  journalTrades?: Prisma.JournalTradeListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -270,6 +272,8 @@ export type UserOrderByWithRelationInput = {
   sessions?: Prisma.UserSessionOrderByRelationAggregateInput
   otpCodes?: Prisma.OtpCodeOrderByRelationAggregateInput
   conversations?: Prisma.ConversationOrderByRelationAggregateInput
+  feedback?: Prisma.MessageFeedbackOrderByRelationAggregateInput
+  journalTrades?: Prisma.JournalTradeOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -293,6 +297,8 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   sessions?: Prisma.UserSessionListRelationFilter
   otpCodes?: Prisma.OtpCodeListRelationFilter
   conversations?: Prisma.ConversationListRelationFilter
+  feedback?: Prisma.MessageFeedbackListRelationFilter
+  journalTrades?: Prisma.JournalTradeListRelationFilter
 }, "id" | "email" | "phone">
 
 export type UserOrderByWithAggregationInput = {
@@ -351,6 +357,8 @@ export type UserCreateInput = {
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   otpCodes?: Prisma.OtpCodeCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -371,6 +379,8 @@ export type UserUncheckedCreateInput = {
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   otpCodes?: Prisma.OtpCodeUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackUncheckedCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
@@ -391,6 +401,8 @@ export type UserUpdateInput = {
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -411,6 +423,8 @@ export type UserUncheckedUpdateInput = {
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUncheckedUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -603,6 +617,34 @@ export type UserUpdateOneWithoutConversationsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutConversationsInput, Prisma.UserUpdateWithoutConversationsInput>, Prisma.UserUncheckedUpdateWithoutConversationsInput>
 }
 
+export type UserCreateNestedOneWithoutFeedbackInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutFeedbackInput, Prisma.UserUncheckedCreateWithoutFeedbackInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutFeedbackInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutFeedbackNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutFeedbackInput, Prisma.UserUncheckedCreateWithoutFeedbackInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutFeedbackInput
+  upsert?: Prisma.UserUpsertWithoutFeedbackInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutFeedbackInput, Prisma.UserUpdateWithoutFeedbackInput>, Prisma.UserUncheckedUpdateWithoutFeedbackInput>
+}
+
+export type UserCreateNestedOneWithoutJournalTradesInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutJournalTradesInput, Prisma.UserUncheckedCreateWithoutJournalTradesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutJournalTradesInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutJournalTradesNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutJournalTradesInput, Prisma.UserUncheckedCreateWithoutJournalTradesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutJournalTradesInput
+  upsert?: Prisma.UserUpsertWithoutJournalTradesInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutJournalTradesInput, Prisma.UserUpdateWithoutJournalTradesInput>, Prisma.UserUncheckedUpdateWithoutJournalTradesInput>
+}
+
 export type UserCreateWithoutProfileInput = {
   id?: string
   email?: string | null
@@ -620,6 +662,8 @@ export type UserCreateWithoutProfileInput = {
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   otpCodes?: Prisma.OtpCodeCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutProfileInput = {
@@ -639,6 +683,8 @@ export type UserUncheckedCreateWithoutProfileInput = {
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   otpCodes?: Prisma.OtpCodeUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackUncheckedCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutProfileInput = {
@@ -674,6 +720,8 @@ export type UserUpdateWithoutProfileInput = {
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutProfileInput = {
@@ -693,6 +741,8 @@ export type UserUncheckedUpdateWithoutProfileInput = {
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUncheckedUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutSessionsInput = {
@@ -712,6 +762,8 @@ export type UserCreateWithoutSessionsInput = {
   profile?: Prisma.TraderProfileCreateNestedOneWithoutUserInput
   otpCodes?: Prisma.OtpCodeCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -731,6 +783,8 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   profile?: Prisma.TraderProfileUncheckedCreateNestedOneWithoutUserInput
   otpCodes?: Prisma.OtpCodeUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackUncheckedCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -766,6 +820,8 @@ export type UserUpdateWithoutSessionsInput = {
   profile?: Prisma.TraderProfileUpdateOneWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -785,6 +841,8 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   profile?: Prisma.TraderProfileUncheckedUpdateOneWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUncheckedUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutOtpCodesInput = {
@@ -804,6 +862,8 @@ export type UserCreateWithoutOtpCodesInput = {
   profile?: Prisma.TraderProfileCreateNestedOneWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutOtpCodesInput = {
@@ -823,6 +883,8 @@ export type UserUncheckedCreateWithoutOtpCodesInput = {
   profile?: Prisma.TraderProfileUncheckedCreateNestedOneWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackUncheckedCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutOtpCodesInput = {
@@ -858,6 +920,8 @@ export type UserUpdateWithoutOtpCodesInput = {
   profile?: Prisma.TraderProfileUpdateOneWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutOtpCodesInput = {
@@ -877,6 +941,8 @@ export type UserUncheckedUpdateWithoutOtpCodesInput = {
   profile?: Prisma.TraderProfileUncheckedUpdateOneWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUncheckedUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutConversationsInput = {
@@ -896,6 +962,8 @@ export type UserCreateWithoutConversationsInput = {
   profile?: Prisma.TraderProfileCreateNestedOneWithoutUserInput
   sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
   otpCodes?: Prisma.OtpCodeCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutConversationsInput = {
@@ -915,6 +983,8 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   profile?: Prisma.TraderProfileUncheckedCreateNestedOneWithoutUserInput
   sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
   otpCodes?: Prisma.OtpCodeUncheckedCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackUncheckedCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutConversationsInput = {
@@ -950,6 +1020,8 @@ export type UserUpdateWithoutConversationsInput = {
   profile?: Prisma.TraderProfileUpdateOneWithoutUserNestedInput
   sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutConversationsInput = {
@@ -969,6 +1041,208 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   profile?: Prisma.TraderProfileUncheckedUpdateOneWithoutUserNestedInput
   sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
   otpCodes?: Prisma.OtpCodeUncheckedUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUncheckedUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutFeedbackInput = {
+  id?: string
+  email?: string | null
+  phone: string
+  countryCode?: string
+  fullName?: string | null
+  passwordHash?: string | null
+  status?: $Enums.UserStatus
+  phoneVerifiedAt?: Date | string | null
+  emailVerifiedAt?: Date | string | null
+  lastLoginAt?: Date | string | null
+  whatsappConsent?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  profile?: Prisma.TraderProfileCreateNestedOneWithoutUserInput
+  sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  otpCodes?: Prisma.OtpCodeCreateNestedManyWithoutUserInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutFeedbackInput = {
+  id?: string
+  email?: string | null
+  phone: string
+  countryCode?: string
+  fullName?: string | null
+  passwordHash?: string | null
+  status?: $Enums.UserStatus
+  phoneVerifiedAt?: Date | string | null
+  emailVerifiedAt?: Date | string | null
+  lastLoginAt?: Date | string | null
+  whatsappConsent?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  profile?: Prisma.TraderProfileUncheckedCreateNestedOneWithoutUserInput
+  sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  otpCodes?: Prisma.OtpCodeUncheckedCreateNestedManyWithoutUserInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
+  journalTrades?: Prisma.JournalTradeUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutFeedbackInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutFeedbackInput, Prisma.UserUncheckedCreateWithoutFeedbackInput>
+}
+
+export type UserUpsertWithoutFeedbackInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutFeedbackInput, Prisma.UserUncheckedUpdateWithoutFeedbackInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutFeedbackInput, Prisma.UserUncheckedCreateWithoutFeedbackInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutFeedbackInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutFeedbackInput, Prisma.UserUncheckedUpdateWithoutFeedbackInput>
+}
+
+export type UserUpdateWithoutFeedbackInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.StringFieldUpdateOperationsInput | string
+  fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumUserStatusFieldUpdateOperationsInput | $Enums.UserStatus
+  phoneVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  emailVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  whatsappConsent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  profile?: Prisma.TraderProfileUpdateOneWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  otpCodes?: Prisma.OtpCodeUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutFeedbackInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.StringFieldUpdateOperationsInput | string
+  fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumUserStatusFieldUpdateOperationsInput | $Enums.UserStatus
+  phoneVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  emailVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  whatsappConsent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  profile?: Prisma.TraderProfileUncheckedUpdateOneWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  otpCodes?: Prisma.OtpCodeUncheckedUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
+  journalTrades?: Prisma.JournalTradeUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutJournalTradesInput = {
+  id?: string
+  email?: string | null
+  phone: string
+  countryCode?: string
+  fullName?: string | null
+  passwordHash?: string | null
+  status?: $Enums.UserStatus
+  phoneVerifiedAt?: Date | string | null
+  emailVerifiedAt?: Date | string | null
+  lastLoginAt?: Date | string | null
+  whatsappConsent?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  profile?: Prisma.TraderProfileCreateNestedOneWithoutUserInput
+  sessions?: Prisma.UserSessionCreateNestedManyWithoutUserInput
+  otpCodes?: Prisma.OtpCodeCreateNestedManyWithoutUserInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutJournalTradesInput = {
+  id?: string
+  email?: string | null
+  phone: string
+  countryCode?: string
+  fullName?: string | null
+  passwordHash?: string | null
+  status?: $Enums.UserStatus
+  phoneVerifiedAt?: Date | string | null
+  emailVerifiedAt?: Date | string | null
+  lastLoginAt?: Date | string | null
+  whatsappConsent?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  profile?: Prisma.TraderProfileUncheckedCreateNestedOneWithoutUserInput
+  sessions?: Prisma.UserSessionUncheckedCreateNestedManyWithoutUserInput
+  otpCodes?: Prisma.OtpCodeUncheckedCreateNestedManyWithoutUserInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutUserInput
+  feedback?: Prisma.MessageFeedbackUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutJournalTradesInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutJournalTradesInput, Prisma.UserUncheckedCreateWithoutJournalTradesInput>
+}
+
+export type UserUpsertWithoutJournalTradesInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutJournalTradesInput, Prisma.UserUncheckedUpdateWithoutJournalTradesInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutJournalTradesInput, Prisma.UserUncheckedCreateWithoutJournalTradesInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutJournalTradesInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutJournalTradesInput, Prisma.UserUncheckedUpdateWithoutJournalTradesInput>
+}
+
+export type UserUpdateWithoutJournalTradesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.StringFieldUpdateOperationsInput | string
+  fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumUserStatusFieldUpdateOperationsInput | $Enums.UserStatus
+  phoneVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  emailVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  whatsappConsent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  profile?: Prisma.TraderProfileUpdateOneWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUpdateManyWithoutUserNestedInput
+  otpCodes?: Prisma.OtpCodeUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutJournalTradesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.StringFieldUpdateOperationsInput | string
+  fullName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumUserStatusFieldUpdateOperationsInput | $Enums.UserStatus
+  phoneVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  emailVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  whatsappConsent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  profile?: Prisma.TraderProfileUncheckedUpdateOneWithoutUserNestedInput
+  sessions?: Prisma.UserSessionUncheckedUpdateManyWithoutUserNestedInput
+  otpCodes?: Prisma.OtpCodeUncheckedUpdateManyWithoutUserNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutUserNestedInput
+  feedback?: Prisma.MessageFeedbackUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -980,12 +1254,16 @@ export type UserCountOutputType = {
   sessions: number
   otpCodes: number
   conversations: number
+  feedback: number
+  journalTrades: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
   otpCodes?: boolean | UserCountOutputTypeCountOtpCodesArgs
   conversations?: boolean | UserCountOutputTypeCountConversationsArgs
+  feedback?: boolean | UserCountOutputTypeCountFeedbackArgs
+  journalTrades?: boolean | UserCountOutputTypeCountJournalTradesArgs
 }
 
 /**
@@ -1019,6 +1297,20 @@ export type UserCountOutputTypeCountConversationsArgs<ExtArgs extends runtime.Ty
   where?: Prisma.ConversationWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountFeedbackArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.MessageFeedbackWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountJournalTradesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.JournalTradeWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1038,6 +1330,8 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   otpCodes?: boolean | Prisma.User$otpCodesArgs<ExtArgs>
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
+  feedback?: boolean | Prisma.User$feedbackArgs<ExtArgs>
+  journalTrades?: boolean | Prisma.User$journalTradesArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -1095,6 +1389,8 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   otpCodes?: boolean | Prisma.User$otpCodesArgs<ExtArgs>
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
+  feedback?: boolean | Prisma.User$feedbackArgs<ExtArgs>
+  journalTrades?: boolean | Prisma.User$journalTradesArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -1107,6 +1403,8 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     sessions: Prisma.$UserSessionPayload<ExtArgs>[]
     otpCodes: Prisma.$OtpCodePayload<ExtArgs>[]
     conversations: Prisma.$ConversationPayload<ExtArgs>[]
+    feedback: Prisma.$MessageFeedbackPayload<ExtArgs>[]
+    journalTrades: Prisma.$JournalTradePayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1520,6 +1818,8 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   otpCodes<T extends Prisma.User$otpCodesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$otpCodesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OtpCodePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   conversations<T extends Prisma.User$conversationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$conversationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ConversationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  feedback<T extends Prisma.User$feedbackArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$feedbackArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MessageFeedbackPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  journalTrades<T extends Prisma.User$journalTradesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$journalTradesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$JournalTradePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2043,6 +2343,54 @@ export type User$conversationsArgs<ExtArgs extends runtime.Types.Extensions.Inte
   take?: number
   skip?: number
   distinct?: Prisma.ConversationScalarFieldEnum | Prisma.ConversationScalarFieldEnum[]
+}
+
+/**
+ * User.feedback
+ */
+export type User$feedbackArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the MessageFeedback
+   */
+  select?: Prisma.MessageFeedbackSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the MessageFeedback
+   */
+  omit?: Prisma.MessageFeedbackOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MessageFeedbackInclude<ExtArgs> | null
+  where?: Prisma.MessageFeedbackWhereInput
+  orderBy?: Prisma.MessageFeedbackOrderByWithRelationInput | Prisma.MessageFeedbackOrderByWithRelationInput[]
+  cursor?: Prisma.MessageFeedbackWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.MessageFeedbackScalarFieldEnum | Prisma.MessageFeedbackScalarFieldEnum[]
+}
+
+/**
+ * User.journalTrades
+ */
+export type User$journalTradesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the JournalTrade
+   */
+  select?: Prisma.JournalTradeSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the JournalTrade
+   */
+  omit?: Prisma.JournalTradeOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.JournalTradeInclude<ExtArgs> | null
+  where?: Prisma.JournalTradeWhereInput
+  orderBy?: Prisma.JournalTradeOrderByWithRelationInput | Prisma.JournalTradeOrderByWithRelationInput[]
+  cursor?: Prisma.JournalTradeWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.JournalTradeScalarFieldEnum | Prisma.JournalTradeScalarFieldEnum[]
 }
 
 /**

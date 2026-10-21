@@ -17,8 +17,8 @@
 
 import * as runtime from "@prisma/client/runtime/index-browser"
 
-export type * from '../models.js'
-export type * from './prismaNamespace.js'
+export type * from '../models.ts'
+export type * from './prismaNamespace.ts'
 
 export const Decimal = runtime.Decimal
 
@@ -57,7 +57,10 @@ export const ModelName = {
   OtpCode: 'OtpCode',
   Conversation: 'Conversation',
   Message: 'Message',
-  MarketSnapshot: 'MarketSnapshot'
+  MarketSnapshot: 'MarketSnapshot',
+  Signal: 'Signal',
+  MessageFeedback: 'MessageFeedback',
+  JournalTrade: 'JournalTrade'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -185,6 +188,70 @@ export const MarketSnapshotScalarFieldEnum = {
 } as const
 
 export type MarketSnapshotScalarFieldEnum = (typeof MarketSnapshotScalarFieldEnum)[keyof typeof MarketSnapshotScalarFieldEnum]
+
+
+export const SignalScalarFieldEnum = {
+  id: 'id',
+  symbol: 'symbol',
+  horizon: 'horizon',
+  direction: 'direction',
+  conviction: 'conviction',
+  entryState: 'entryState',
+  priceAtIssue: 'priceAtIssue',
+  entry: 'entry',
+  stopLoss: 'stopLoss',
+  tp1: 'tp1',
+  tp2: 'tp2',
+  riskReward1: 'riskReward1',
+  expiresAt: 'expiresAt',
+  maxHoldUntil: 'maxHoldUntil',
+  status: 'status',
+  triggeredAt: 'triggeredAt',
+  closedAt: 'closedAt',
+  exitPrice: 'exitPrice',
+  resultR: 'resultR',
+  tp2Hit: 'tp2Hit',
+  dedupeKey: 'dedupeKey',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SignalScalarFieldEnum = (typeof SignalScalarFieldEnum)[keyof typeof SignalScalarFieldEnum]
+
+
+export const MessageFeedbackScalarFieldEnum = {
+  id: 'id',
+  messageId: 'messageId',
+  userId: 'userId',
+  rating: 'rating',
+  reason: 'reason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MessageFeedbackScalarFieldEnum = (typeof MessageFeedbackScalarFieldEnum)[keyof typeof MessageFeedbackScalarFieldEnum]
+
+
+export const JournalTradeScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  signalId: 'signalId',
+  direction: 'direction',
+  entry: 'entry',
+  stopLoss: 'stopLoss',
+  takeProfit: 'takeProfit',
+  lots: 'lots',
+  status: 'status',
+  exitPrice: 'exitPrice',
+  pnlPoints: 'pnlPoints',
+  note: 'note',
+  openedAt: 'openedAt',
+  closedAt: 'closedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type JournalTradeScalarFieldEnum = (typeof JournalTradeScalarFieldEnum)[keyof typeof JournalTradeScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -11,6 +11,8 @@ import Fastify, {
 import { env } from "./config.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
+import { journalRoutes } from "./modules/journal/journal.routes.js";
+import { signalsRoutes } from "./modules/signals/signals.routes.js";
 import { routes } from "./routes.js";
 
 export function buildApp(): FastifyInstance {
@@ -164,6 +166,13 @@ export function buildApp(): FastifyInstance {
           prefix:
             "/auth",
         },
+      );
+
+      await api.register(signalsRoutes);
+
+      await api.register(
+        journalRoutes,
+        { prefix: "/journal" },
       );
 
       await api.register(

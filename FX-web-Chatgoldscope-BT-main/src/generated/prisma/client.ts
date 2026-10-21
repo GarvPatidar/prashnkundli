@@ -16,12 +16,12 @@ import { fileURLToPath } from 'node:url'
 globalThis['__dirname'] = path.dirname(fileURLToPath(import.meta.url))
 
 import * as runtime from "@prisma/client/runtime/client"
-import * as $Enums from "./enums.js"
-import * as $Class from "./internal/class.js"
-import * as Prisma from "./internal/prismaNamespace.js"
+import * as $Enums from "./enums.ts"
+import * as $Class from "./internal/class.ts"
+import * as Prisma from "./internal/prismaNamespace.ts"
 
-export * as $Enums from './enums.js'
-export * from "./enums.js"
+export * as $Enums from './enums.ts'
+export * from "./enums.ts"
 /**
  * ## Prisma Client
  * 
@@ -76,3 +76,20 @@ export type Message = Prisma.MessageModel
  * 
  */
 export type MarketSnapshot = Prisma.MarketSnapshotModel
+/**
+ * Model Signal
+ * Every actionable BUY/SELL plan the bot issued. Outcomes are filled in
+ * automatically from market candles, so the track record needs no user input.
+ */
+export type Signal = Prisma.SignalModel
+/**
+ * Model MessageFeedback
+ * 
+ */
+export type MessageFeedback = Prisma.MessageFeedbackModel
+/**
+ * Model JournalTrade
+ * A trade the user reports taking. Entered by the user, because the bot
+ * cannot know whether a signal was actually traded.
+ */
+export type JournalTrade = Prisma.JournalTradeModel

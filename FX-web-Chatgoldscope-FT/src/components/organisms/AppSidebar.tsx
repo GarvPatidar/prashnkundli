@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
+  BookOpen,
   Calculator,
+  ShieldCheck,
   History,
   LogOut,
   MessageSquarePlus,
@@ -19,6 +21,8 @@ const links = [
   ["/app/chat", "New Chat", MessageSquarePlus],
   ["/app/market", "Market", BarChart3],
   ["/app/risk-calculator", "Risk calculator", Calculator],
+  ["/app/journal", "Trade journal", BookOpen],
+  ["/app/track-record", "Track record", ShieldCheck],
   ["/app/history", "History", History],
   ["/app/settings", "Settings", Settings],
 ] as const;

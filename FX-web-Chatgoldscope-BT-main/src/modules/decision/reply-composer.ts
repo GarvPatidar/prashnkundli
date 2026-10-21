@@ -9,6 +9,7 @@ import {
   type TimeframeRead,
   type WhyCode,
 } from "./decision.service.js";
+import { activeBlackout, calendarCovers, nextMacroEvents, type MacroEvent } from "../calendar/static-calendar.js";
 import {
   altPlanLine,
   footer,
@@ -61,6 +62,7 @@ export type Intent =
   | "WHERE_BUY"
   | "WHERE_SELL"
   | "DIRECTION"
+  | "CHART_MISSING"
   | "VERDICT";
 
 export interface ComposeInput {
@@ -119,6 +121,10 @@ export function detectIntent(rawMessage: string): Intent | null {
   }
   if (has(m, /\b(ignore (all |the )?(previous|prior|above) instructions|system prompt|api key|openai key|secrets?|passwords?|jailbreak|developer mode)\b/)) {
     return "INJECTION";
+  }
+  if (has(m, /\b(this|the|my|attached|above|uploaded|shared) (chart|screenshot|image|picture|pic)\b/) ||
+      has(m, /\banaly[sz]e (the |this |my )?(chart|screenshot|image)\b/)) {
+    return "CHART_MISSING";
   }
   if (/100 ?%/.test(m) || has(m, /\b(guarantee|guaranteed|sure ?shot|risk.?free|will you pay|compensate|double my account|get rich|insider|pump)\b/) ||
       has(m, /\bare you (really )?sure\b/)) {
@@ -323,9 +329,36 @@ function why(code: WhyCode, d: Decision, lang: Lang): string {
       return t(lang, "Reward-to-risk to the first target is below 1", "Pehle target tak reward:risk 1 se kam hai");
     case "RISK_ELEVATED":
       return t(lang, "Overall risk conditions are elevated", "Overall risk conditions high hain");
+    case "NEWS_BLACKOUT":
+      return d.blackout
+        ? t(
+            lang,
+            `${d.blackout.name} ${d.blackout.phase === "BEFORE" ? `in ${d.blackout.minutes} min` : `released ${d.blackout.minutes} min ago`}: spreads and volatility spike, so no fresh entries`,
+            `${d.blackout.name} ${d.blackout.phase === "BEFORE" ? `${d.blackout.minutes} min mein` : `${d.blackout.minutes} min pehle aaya`}: spread aur volatility badhti hai, isliye nayi entry nahi`,
+          )
+        : "";
     case "MARKET_CLOSED":
       return t(lang, "Market is closed right now", "Market abhi band hai");
   }
+}
+
+const MIN_RR = 1.2;
+
+function rrOf(plan: TradeScenario): number {
+  return plan.riskReward[0] ?? 0;
+}
+
+const lowRrTag = (plan: TradeScenario, lang: Lang): string =>
+  rrOf(plan) < MIN_RR ? t(lang, " ⛔ RR below 1:1.2: skip", " ⛔ RR 1:1.2 se kam: skip") : "";
+
+function triggerNote(plans: TradeScenario[], lang: Lang): string[] {
+  const out = [
+    `ℹ️ ${t(lang, "These are trigger levels, not pending orders: act only after the M15 candle confirms, and never place both sides together.", "Ye trigger levels hain, pending order nahi: M15 candle confirm karne ke baad hi action lo, aur dono side ke order saath mat lagao.")}`,
+  ];
+  if (plans.length > 0 && plans.every((p) => rrOf(p) < MIN_RR)) {
+    out.push(`⛔ ${t(lang, "Both plans pay less than 1:1.2 for the risk, so my honest call is to skip both.", "Dono plans mein risk ke hisaab se reward 1:1.2 se kam hai, isliye mera honest call: dono skip karo.")}`);
+  }
+  return out;
 }
 
 function planLines(plan: TradeScenario, lang: Lang): string[] {
@@ -334,7 +367,7 @@ function planLines(plan: TradeScenario, lang: Lang): string[] {
   const lines = [
     `📍 ${t(lang, "Entry", "Entry")} ${fmt(plan.entry)}   🛑 ${t(lang, "Stop", "Stop")} ${fmt(plan.stopLoss)}`,
     `🎯 TP1 ${fmt(t1)}${t2 !== undefined ? `   TP2 ${fmt(t2)}` : ""}`,
-    `${t(lang, "Risk", "Risk")} ${fmt(plan.riskPoints)} pts · ${t(lang, "Reward", "Reward")} 1:${fmt(r1)}${r2 !== undefined ? ` / 1:${fmt(r2)}` : ""}`,
+    `${t(lang, "Risk", "Risk")} ${fmt(plan.riskPoints)} pts · ${t(lang, "Reward", "Reward")} 1:${fmt(r1)}${r2 !== undefined ? ` / 1:${fmt(r2)}` : ""}${lowRrTag(plan, lang)}`,
     `🔁 ${t(lang, "Invalid if", "Plan cancel agar")}: ${t(
       lang,
       `an H1 candle closes beyond ${fmt(plan.stopLoss)}`,
@@ -389,7 +422,10 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx
     );
     out.push(...planLines(d.plan, lang));
   } else {
-    if (d.lean !== "FLAT" && !d.marketClosed) {
+    if (d.blackout) {
+      out.push("", t(lang, "⏳ Let the release settle (about 30 minutes after it), then ask again for a fresh view.", "⏳ Release ko settle hone do (aane ke baad lagbhag 30 min), phir naya view poochho."));
+    }
+    if (d.lean !== "FLAT" && !d.marketClosed && !d.blackout) {
       out.push(
         "",
         t(
@@ -400,7 +436,7 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx
       );
     }
 
-    if (d.plans.length > 0 && !d.marketClosed) {
+    if (d.plans.length > 0 && !d.marketClosed && !d.blackout) {
       out.push("", `📍 ${t(lang, "I will act when", "Main tab action lunga jab")}`);
       for (const plan of d.plans) {
         const side = plan.direction === "BUY" ? "🟢 BUY" : "🔴 SELL";
@@ -413,8 +449,9 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx
             ? t(lang, `price dips to ${fmt(plan.entry)} and an M15 candle closes back above it`, `price ${fmt(plan.entry)} tak aaye aur M15 candle uske upar wapas close ho`)
             : t(lang, `price rallies to ${fmt(plan.entry)} and an M15 candle closes back below it`, `price ${fmt(plan.entry)} tak chadhe aur M15 candle uske neeche wapas close ho`);
         out.push(`${side}${counter}: ${trigger}`);
-        out.push(`   🛑 ${fmt(plan.stopLoss)} | 🎯 ${plan.targets.map(fmt).join(" / ")} | 1:${fmt(plan.riskReward[0])}`);
+        out.push(`   🛑 ${fmt(plan.stopLoss)} | 🎯 ${plan.targets.map(fmt).join(" / ")} | 1:${fmt(plan.riskReward[0])}${lowRrTag(plan, lang)}`);
       }
+      out.push("", ...triggerNote(d.plans, lang));
     }
   }
 
@@ -425,7 +462,7 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx
   }
 
   out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`);
-  out.push("", ...footer(ctx, true));
+  out.push("", ...footer(ctx, true, calLine(input.now, lang)));
   return out.join("\n");
 }
 
@@ -461,6 +498,9 @@ function whereCard(side: "BUY" | "SELL", d: Decision, input: ComposeInput, lang:
       );
     }
     out.push(...planLines(plan, lang));
+    if (rrOf(plan) < MIN_RR) {
+      out.push(`⛔ ${t(lang, "The reward is too small for the risk: I'd skip this one.", "Risk ke hisaab se reward bahut kam hai: main ye skip karunga.")}`);
+    }
     out.push(
       t(
         lang,
@@ -472,7 +512,7 @@ function whereCard(side: "BUY" | "SELL", d: Decision, input: ComposeInput, lang:
 
   const wnote = profileNote(d, ctx);
   if (wnote && plan) out.push("", wnote);
-  out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`, "", ...footer(ctx, true));
+  out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`, "", ...footer(ctx, true, calLine(input.now, lang)));
   return out.join("\n");
 }
 
@@ -711,7 +751,7 @@ function holdExitCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCt
   }
 
   out.push("", t(lang, `${ctx.n}💬 Tell me whether you're in a BUY or a SELL, and your entry price, and I'll give you your exact distance, P&L and a plan for that side only.`, `${ctx.n}💬 Batao aap BUY mein ho ya SELL mein, aur entry price kya hai: main aapka exact P&L, doori aur sirf us side ka plan dunga.`));
-  out.push("", ...footer(ctx, true));
+  out.push("", ...footer(ctx, true, calLine(input.now, lang)));
   return out.join("\n");
 }
 
@@ -803,7 +843,7 @@ function holdExitSideCard(side: Side, d: Decision, input: ComposeInput, lang: La
   if (entryPx === null && targetPx === null) {
     out.push("", t(lang, "💬 Tell me your entry price and I'll work out your exact distance and P&L.", "💬 Apna entry price batao, main exact doori aur P&L nikaal dunga."));
   }
-  out.push("", ...footer(ctx, true));
+  out.push("", ...footer(ctx, true, calLine(input.now, lang)));
   return out.join("\n");
 }
 
@@ -872,19 +912,64 @@ function riskCard(d: Decision, input: ComposeInput, lang: Lang): string {
   return out.join("\n");
 }
 
-function newsCard(d: Decision, lang: Lang): string {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function eventTime(at: Date): string {
+  const ist = new Date(at.getTime() + 330 * 60_000);
+  return `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}, ${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())} UTC (${pad(ist.getUTCHours())}:${pad(ist.getUTCMinutes())} IST)`;
+}
+
+function untilText(from: Date, at: Date): string {
+  const minutes = Math.max(0, Math.round((at.getTime() - from.getTime()) / 60_000));
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  if (days > 0) return `${days} d ${hours} h`;
+  if (hours > 0) return `${hours} h ${minutes % 60} min`;
+  return `${minutes} min`;
+}
+
+/** One-line calendar note for the footer; null when the dated list has run out. */
+function calLine(now: Date | undefined, lang: Lang): string | null {
+  const at = now ?? new Date();
+  if (!calendarCovers(at)) return null;
+  const live = activeBlackout(at);
+  if (live) {
+    return `📅 ${t(lang, `${live.name} ${live.phase === "BEFORE" ? `in ${live.minutes} min` : `${live.minutes} min ago`}: event window, avoid new entries.`, `${live.name} ${live.phase === "BEFORE" ? `${live.minutes} min mein` : `${live.minutes} min pehle`}: event window, nayi entry avoid karo.`)}`;
+  }
+  const next = nextMacroEvents(at, 1)[0];
+  if (!next) return null;
+  return `📅 ${t(lang, `Next US high-impact: ${next.name} in ${untilText(at, next.at)} (${eventTime(next.at)}). I track NFP, CPI and FOMC only; check a full calendar for other releases.`, `Agla US high-impact: ${next.name} ${untilText(at, next.at)} mein (${eventTime(next.at)}). Main sirf NFP, CPI aur FOMC track karta hu; baaki releases ke liye poora calendar dekho.`)}`;
+}
+
+function eventRow(event: MacroEvent, now: Date): string {
+  return `• ${event.name}: ${eventTime(event.at)} · ${untilText(now, event.at)}`;
+}
+
+function newsCard(d: Decision, lang: Lang, nowInput?: Date): string {
+  const now = nowInput ?? new Date();
+  const covers = calendarCovers(now);
+  const live = activeBlackout(now);
+  const upcoming = covers ? nextMacroEvents(now, 3) : [];
+
+  const head: string[] = [t(lang, "📰 News and events", "📰 News aur events"), ""];
+  if (live) {
+    head.push(
+      `🚨 ${t(lang, `${live.name} ${live.phase === "BEFORE" ? `is due in ${live.minutes} min` : `was released ${live.minutes} min ago`}. Event window: no fresh entries until it settles.`, `${live.name} ${live.phase === "BEFORE" ? `${live.minutes} min mein aane wala hai` : `${live.minutes} min pehle aaya`}. Event window: jab tak settle na ho nayi entry nahi.`)}`,
+      "",
+    );
+  }
+  if (upcoming.length > 0) {
+    head.push(t(lang, "Next US high-impact releases I track:", "Agle US high-impact releases jo main track karta hu:"));
+    for (const event of upcoming) head.push(eventRow(event, now));
+  } else {
+    head.push(t(lang, "My built-in release list has run out, so I can't tell you what is due. Check a full economic calendar.", "Mera built-in release list khatam ho gaya, isliye main nahi bata sakta ki kya aane wala hai. Poora economic calendar dekho."));
+  }
+
   return [
-    t(lang, "📰 News and events", "📰 News aur events"),
+    ...head,
     "",
-    t(
-      lang,
-      "I don't have a news or economic-calendar feed connected yet, so I can't tell you whether CPI, NFP, an FOMC decision or any other event is due, what it printed, or what the dollar index is doing. I won't guess.",
-      "Mere paas abhi news ya economic-calendar feed connected nahi hai, isliye main nahi bata sakta ki CPI, NFP, FOMC ya koi aur event aane wala hai, kya aaya, ya dollar index kya kar raha hai. Main andaza nahi lagaunga.",
-    ),
-    "",
-    t(lang, "What to do:", "Kya karein:"),
-    t(lang, "• Check an economic calendar for USD high-impact events today.", "• Aaj ke USD high-impact events kisi economic calendar par check karo."),
-    t(lang, "• Avoid fresh entries 15 minutes before and after them; spreads and volatility spike.", "• Event se 15 min pehle aur baad nayi entry avoid karo; spread aur volatility badhti hai."),
+    t(lang, "Scope: only NFP, CPI and FOMC are tracked. PPI, GDP, retail sales, jobless claims, Fed speakers, geopolitical headlines and the dollar index are not covered, so check a full calendar before trading.", "Scope: sirf NFP, CPI aur FOMC track hote hain. PPI, GDP, retail sales, jobless claims, Fed speakers, geopolitical headlines aur dollar index cover nahi hain, isliye trade se pehle poora calendar dekho."),
+    t(lang, "Rule I follow: no fresh entries 30 min before and after these releases (60 min after an FOMC decision).", "Mera rule: in releases se 30 min pehle aur baad nayi entry nahi (FOMC decision ke baad 60 min)."),
     "",
     `${t(lang, "Technical view right now", "Abhi ka technical view")}: ${d.action === "WAIT" ? "🟡 WAIT" : d.action === "BUY" ? "🟢 BUY" : "🔴 SELL"} · ${t(lang, "Conviction", "Conviction")} ${convictionWord(d.conviction, lang)} · XAU/USD ${fmt(d.price)}`,
   ].join("\n");
@@ -1151,8 +1236,9 @@ function repeatCard(d: Decision, lang: Lang, ctx: ReplyCtx): string {
     out.push(t(lang, `Price is ${fmt(Math.abs(gap))} pts ${gap > 0 ? "above" : "below"} the entry${x ? ` (~${fmt(x)} × H1 ATR)` : ""}.`, `Price entry se ${fmt(Math.abs(gap))} pts ${gap > 0 ? "upar" : "neeche"} hai${x ? ` (~${fmt(x)} × H1 ATR)` : ""}.`));
   } else if (d.plans.length > 0) {
     for (const p of d.plans) {
-      out.push(`📍 ${p.direction === "BUY" ? "🟢 BUY" : "🔴 SELL"} ${fmt(p.entry)} · 🛑 ${fmt(p.stopLoss)} · 🎯 ${p.targets.map(fmt).join(" / ")} · 1:${fmt(p.riskReward[0])}`);
+      out.push(`📍 ${p.direction === "BUY" ? "🟢 BUY" : "🔴 SELL"} ${fmt(p.entry)} · 🛑 ${fmt(p.stopLoss)} · 🎯 ${p.targets.map(fmt).join(" / ")} · 1:${fmt(p.riskReward[0])}${lowRrTag(p, lang)}`);
     }
+    out.push(...triggerNote(d.plans, lang));
   }
   out.push("", `⏱ ${t(lang, "View refreshes at", "View update hoga")} ${timeBoth(d.validUntil)}`, "", ...footer(ctx, false));
   return out.join("\n");
@@ -1259,6 +1345,8 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
     marketClosed: input.marketClosed,
     riskScore: input.riskScore,
     horizon: detectHorizon(input.message),
+    stabilize: true,
+    newsBlackout: activeBlackout(input.now ?? new Date()),
     ...(input.now ? { now: input.now } : {}),
   });
 
@@ -1272,7 +1360,7 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
   let text: string;
   switch (intent) {
     case "NEWS":
-      text = newsCard(decision, lang);
+      text = newsCard(decision, lang, input.now);
       break;
     case "PRICE":
       text = priceCard(decision, input, lang);
@@ -1349,6 +1437,14 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
     case "DIRECTION":
       text = directionCard(decision, input, lang, ctx);
       break;
+    case "CHART_MISSING":
+      text = [
+        `${ctx.n}${t(lang, "📎 I can't see a chart on this message. Attach the screenshot (PNG or JPG) to the same message and ask again, and I'll read the structure on it.", "📎 Is message mein mujhe koi chart nahi dikh raha. Screenshot (PNG/JPG) usi message ke saath attach karke dobara poochho, main us par structure padh lunga.")}`,
+        "",
+        t(lang, "Meanwhile, the engine view from live candles:", "Tab tak live candles ka engine view:"),
+        briefCard(decision, lang),
+      ].join("\n");
+      break;
     default:
       text = verdictCard(decision, input, lang, ctx);
   }
@@ -1368,4 +1464,55 @@ export function composeDecisionReply(input: ComposeInput): ComposedReply | null 
   remember(input.conversationKey, mem, rememberSig);
 
   return { intent, decision, text };
+}
+
+
+/* ------------------- outlook card aligned to the decision ---------------- */
+
+export interface OutlookFromDecision {
+  headline: string;
+  decisionState: "STRONG_BULLISH" | "BULLISH" | "WAIT" | "BEARISH" | "STRONG_BEARISH";
+  action: "BUY_SETUP" | "SELL_SETUP" | "WAIT";
+  summary: string;
+  nextStep: string;
+  engineLine: string;
+}
+
+/**
+ * The full-analysis card and any AI-written reply must say the same thing as
+ * the chat verdict. This is the single source for bias, action and headline.
+ */
+export function outlookFromDecision(d: Decision): OutlookFromDecision {
+  const conv = convictionWord(d.conviction, "en");
+  const tfs = (["D1", "H4", "H1", "M15"] as const)
+    .map((tf) => `${tf} ${dirWord(d.reads[tf].dir)}`)
+    .join(", ");
+  const reasons = d.why.slice(0, 3).map((code) => why(code, d, "en")).join(". ");
+
+  if (d.action === "BUY" || d.action === "SELL") {
+    const strong = d.conviction === "HIGH";
+    const bull = d.action === "BUY";
+    const plan = d.plan;
+    return {
+      headline: `${d.action} setup${d.entryState === "NOW" ? "" : " on pullback"} · Conviction ${conv}`,
+      decisionState: bull ? (strong ? "STRONG_BULLISH" : "BULLISH") : strong ? "STRONG_BEARISH" : "BEARISH",
+      action: bull ? "BUY_SETUP" : "SELL_SETUP",
+      summary: `${d.action} ${d.entryState === "NOW" ? "setup is ready" : "on a pullback, not a chase"} (conviction ${conv}). Timeframes: ${tfs}. ${reasons}.${plan ? ` Plan: entry ${fmt(plan.entry)}, stop ${fmt(plan.stopLoss)}, TP1 ${fmt(plan.targets[0])}.` : ""}`,
+      nextStep: plan
+        ? `Enter only after an M15 candle confirms at ${fmt(plan.entry)}; the idea is invalid if an H1 candle closes beyond ${fmt(plan.stopLoss)}.`
+        : "Wait for a clean level and an M15 confirmation.",
+      engineLine: `Engine view from live candles: ${d.action} (${conv} conviction); ${tfs}.`,
+    };
+  }
+
+  const lean = d.lean === "FLAT" ? "no clear lean" : `${dirWord(d.lean)} lean`;
+  return {
+    headline: `Wait: ${lean} · Conviction ${conv}`,
+    decisionState: "WAIT",
+    action: "WAIT",
+    summary: `Wait: ${lean}, but conviction (${conv}) is too low to call it a trade. Timeframes: ${tfs}. ${reasons}.`,
+    nextStep:
+      "Wait for an M15 confirmation at the trigger levels. They are conditional triggers, not pending orders, so do not place both sides together.",
+    engineLine: `Engine view from live candles: WAIT with a ${lean} (${conv} conviction); ${tfs}.`,
+  };
 }

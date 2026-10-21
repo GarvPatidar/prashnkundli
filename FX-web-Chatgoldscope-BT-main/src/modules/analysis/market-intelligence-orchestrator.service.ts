@@ -1,4 +1,5 @@
 import { candleProvider } from "../market/candle.factory.js";
+import { recordAndTrack } from "../signals/signal.service.js";
 import { buildDayStats } from "./day-stats.js";
 import { buildHistorySummary } from "./history-summary.js";
 import { buildTradeScenarios } from "./trade-scenarios.js";
@@ -392,12 +393,17 @@ export class MarketIntelligenceOrchestratorService {
           : {}),
       });
 
-      return {
+      const built: MarketIntelligenceResult = {
         ...analysed,
         history: buildHistorySummary(d1Candles),
         dayStats: buildDayStats(d1Candles, m15Candles),
         tradeScenarios: buildTradeScenarios(analysed),
       };
+
+      /* Public track record: log the engine's signal and follow open ones. */
+      void recordAndTrack(built, m15Candles);
+
+      return built;
     } catch (error) {
       throw new MarketIntelligenceOrchestratorError(
         "XAU/USD market intelligence could not be generated.",

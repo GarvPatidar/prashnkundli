@@ -73,3 +73,39 @@ export const RiskTolerance = {
 } as const
 
 export type RiskTolerance = (typeof RiskTolerance)[keyof typeof RiskTolerance]
+
+
+export const SignalDirection = {
+  BUY: 'BUY',
+  SELL: 'SELL'
+} as const
+
+export type SignalDirection = (typeof SignalDirection)[keyof typeof SignalDirection]
+
+
+export const SignalStatus = {
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE',
+  TP1_HIT: 'TP1_HIT',
+  STOPPED: 'STOPPED',
+  EXPIRED: 'EXPIRED',
+  TIMEOUT: 'TIMEOUT'
+} as const
+
+export type SignalStatus = (typeof SignalStatus)[keyof typeof SignalStatus]
+
+
+export const FeedbackRating = {
+  UP: 'UP',
+  DOWN: 'DOWN'
+} as const
+
+export type FeedbackRating = (typeof FeedbackRating)[keyof typeof FeedbackRating]
+
+
+export const JournalStatus = {
+  OPEN: 'OPEN',
+  CLOSED: 'CLOSED'
+} as const
+
+export type JournalStatus = (typeof JournalStatus)[keyof typeof JournalStatus]

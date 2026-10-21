@@ -13,10 +13,10 @@
  * 🟢 You can import this file directly.
  */
 
-import * as Prisma from './internal/prismaNamespaceBrowser.js'
+import * as Prisma from './internal/prismaNamespaceBrowser.ts'
 export { Prisma }
-export * as $Enums from './enums.js'
-export * from './enums.js';
+export * as $Enums from './enums.ts'
+export * from './enums.ts';
 /**
  * Model User
  * 
@@ -52,3 +52,20 @@ export type Message = Prisma.MessageModel
  * 
  */
 export type MarketSnapshot = Prisma.MarketSnapshotModel
+/**
+ * Model Signal
+ * Every actionable BUY/SELL plan the bot issued. Outcomes are filled in
+ * automatically from market candles, so the track record needs no user input.
+ */
+export type Signal = Prisma.SignalModel
+/**
+ * Model MessageFeedback
+ * 
+ */
+export type MessageFeedback = Prisma.MessageFeedbackModel
+/**
+ * Model JournalTrade
+ * A trade the user reports taking. Entered by the user, because the bot
+ * cannot know whether a signal was actually traded.
+ */
+export type JournalTrade = Prisma.JournalTradeModel
