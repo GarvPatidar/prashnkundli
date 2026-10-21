@@ -423,7 +423,7 @@ function verdictCard(d: Decision, input: ComposeInput, lang: Lang, ctx: ReplyCtx
     out.push(...planLines(d.plan, lang));
   } else {
     if (d.blackout) {
-      out.push("", t(lang, "⏳ Let the release settle (about 30 minutes after it), then ask again for a fresh view.", "⏳ Release ko settle hone do (aane ke baad lagbhag 30 min), phir naya view poochho."));
+      out.push("", t(lang, "⏳ Let the release settle (about an hour after it), then ask again for a fresh view.", "⏳ Release ko settle hone do (aane ke baad lagbhag 1 ghanta), phir naya view poochho."));
     }
     if (d.lean !== "FLAT" && !d.marketClosed && !d.blackout) {
       out.push(
@@ -938,7 +938,7 @@ function calLine(now: Date | undefined, lang: Lang): string | null {
   }
   const next = nextMacroEvents(at, 1)[0];
   if (!next) return null;
-  return `📅 ${t(lang, `Next US high-impact: ${next.name} in ${untilText(at, next.at)} (${eventTime(next.at)}). I track NFP, CPI and FOMC only; check a full calendar for other releases.`, `Agla US high-impact: ${next.name} ${untilText(at, next.at)} mein (${eventTime(next.at)}). Main sirf NFP, CPI aur FOMC track karta hu; baaki releases ke liye poora calendar dekho.`)}`;
+  return `📅 ${t(lang, `Next US high-impact: ${next.name} in ${untilText(at, next.at)} (${eventTime(next.at)}). I track NFP, CPI, PCE and FOMC only; check a full calendar for other releases.`, `Agla US high-impact: ${next.name} ${untilText(at, next.at)} mein (${eventTime(next.at)}). Main sirf NFP, CPI, PCE aur FOMC track karta hu; baaki releases ke liye poora calendar dekho.`)}`;
 }
 
 function eventRow(event: MacroEvent, now: Date): string {
@@ -968,8 +968,8 @@ function newsCard(d: Decision, lang: Lang, nowInput?: Date): string {
   return [
     ...head,
     "",
-    t(lang, "Scope: only NFP, CPI and FOMC are tracked. PPI, GDP, retail sales, jobless claims, Fed speakers, geopolitical headlines and the dollar index are not covered, so check a full calendar before trading.", "Scope: sirf NFP, CPI aur FOMC track hote hain. PPI, GDP, retail sales, jobless claims, Fed speakers, geopolitical headlines aur dollar index cover nahi hain, isliye trade se pehle poora calendar dekho."),
-    t(lang, "Rule I follow: no fresh entries 30 min before and after these releases (60 min after an FOMC decision).", "Mera rule: in releases se 30 min pehle aur baad nayi entry nahi (FOMC decision ke baad 60 min)."),
+    t(lang, "Scope: only NFP, CPI, PCE and FOMC are tracked. PPI, GDP, retail sales, jobless claims, Fed speakers, geopolitical headlines and the dollar index are not covered, so check a full calendar before trading.", "Scope: sirf NFP, CPI, PCE aur FOMC track hote hain. PPI, GDP, retail sales, jobless claims, Fed speakers, geopolitical headlines aur dollar index cover nahi hain, isliye trade se pehle poora calendar dekho."),
+    t(lang, "Rule I follow: no fresh entries for 1 hour before and 1 hour after these releases; the rest of the day is not blocked.", "Mera rule: in releases se 1 ghanta pehle aur 1 ghanta baad tak nayi entry nahi; baaki din block nahi hota."),
     "",
     `${t(lang, "Technical view right now", "Abhi ka technical view")}: ${d.action === "WAIT" ? "🟡 WAIT" : d.action === "BUY" ? "🟢 BUY" : "🔴 SELL"} · ${t(lang, "Conviction", "Conviction")} ${convictionWord(d.conviction, lang)} · XAU/USD ${fmt(d.price)}`,
   ].join("\n");

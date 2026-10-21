@@ -1,17 +1,21 @@
 /**
- * Free macro calendar for the three US releases that move gold the most:
- * Non-Farm Payrolls, CPI and FOMC rate decisions.
+ * Free macro calendar for the four US releases that move gold the most:
+ * Non-Farm Payrolls, CPI, PCE (the Fed's preferred inflation gauge) and FOMC
+ * rate decisions.
  *
  * Dates come from the official schedules (BLS "Employment Situation" and
  * "CPI" release calendars, and the Federal Reserve FOMC calendar), checked on
- * 2026-10-21. FOMC 2027 dates are tentative until each meeting is confirmed.
+ * 2026-10-21. PCE dates (BEA, 8:30 ET) come from two public calendars that
+ * quote the BEA schedule and agree for 2026; the 2027 PCE dates come from one
+ * of them only. FOMC 2027 dates are tentative until each meeting is confirmed.
+ * BEA/BLS can move release dates, so re-check before each year.
  * This is NOT a full calendar: PPI, GDP, jobless claims, retail sales and Fed
  * speakers are not included, and replies must say so.
  *
  * Refresh the lists once a year, or replace this module with a live feed.
  */
 
-export type MacroKind = "NFP" | "CPI" | "FOMC";
+export type MacroKind = "NFP" | "CPI" | "FOMC" | "PCE";
 
 export interface MacroEvent {
   kind: MacroKind;
@@ -42,6 +46,13 @@ const CPI_DATES = [
   "2026-11-10", "2026-12-10",
   "2027-01-13", "2027-02-11", "2027-03-10", "2027-04-13", "2027-05-12", "2027-06-10",
   "2027-07-14", "2027-08-11", "2027-09-14", "2027-10-14", "2027-11-10", "2027-12-10",
+];
+
+/** PCE price index ("Personal Income and Outlays"), 8:30 am ET. */
+const PCE_DATES = [
+  "2026-10-29", "2026-11-25", "2026-12-23",
+  "2027-01-28", "2027-02-25", "2027-03-31", "2027-04-29", "2027-05-27", "2027-06-25",
+  "2027-07-29", "2027-08-25", "2027-09-30", "2027-10-28", "2027-11-24", "2027-12-22",
 ];
 
 /** FOMC decision days (second day of the meeting), statement at 2:00 pm ET. */
@@ -81,13 +92,16 @@ export function easternToUtc(date: string, hhmm: string): Date {
 function build(): MacroEvent[] {
   const events: MacroEvent[] = [];
   for (const date of NFP_DATES) {
-    events.push({ kind: "NFP", name: "US Non-Farm Payrolls", at: easternToUtc(date, "08:30"), blackoutBeforeMin: 30, blackoutAfterMin: 30 });
+    events.push({ kind: "NFP", name: "US Non-Farm Payrolls", at: easternToUtc(date, "08:30"), blackoutBeforeMin: 60, blackoutAfterMin: 60 });
   }
   for (const date of CPI_DATES) {
-    events.push({ kind: "CPI", name: "US CPI", at: easternToUtc(date, "08:30"), blackoutBeforeMin: 30, blackoutAfterMin: 30 });
+    events.push({ kind: "CPI", name: "US CPI", at: easternToUtc(date, "08:30"), blackoutBeforeMin: 60, blackoutAfterMin: 60 });
+  }
+  for (const date of PCE_DATES) {
+    events.push({ kind: "PCE", name: "US PCE inflation", at: easternToUtc(date, "08:30"), blackoutBeforeMin: 60, blackoutAfterMin: 60 });
   }
   for (const date of FOMC_DATES) {
-    events.push({ kind: "FOMC", name: "FOMC rate decision", at: easternToUtc(date, "14:00"), blackoutBeforeMin: 30, blackoutAfterMin: 60 });
+    events.push({ kind: "FOMC", name: "FOMC rate decision", at: easternToUtc(date, "14:00"), blackoutBeforeMin: 60, blackoutAfterMin: 60 });
   }
   return events.sort((a, b) => a.at.getTime() - b.at.getTime());
 }
