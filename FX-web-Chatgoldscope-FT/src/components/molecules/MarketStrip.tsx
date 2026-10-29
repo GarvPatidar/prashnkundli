@@ -31,7 +31,7 @@ import {
 
 const REFRESH_INTERVAL_MS = Math.max(
   3_000,
-  Number(process.env.NEXT_PUBLIC_MARKET_REFRESH_MS) || 15_000,
+  Number(process.env.NEXT_PUBLIC_MARKET_REFRESH_MS) || 30_000,
 );
 
 /**

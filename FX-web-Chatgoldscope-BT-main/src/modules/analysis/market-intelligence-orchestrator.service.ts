@@ -30,7 +30,7 @@ const INTELLIGENCE_CACHE_TTL_MS =
  * stale so the UI and AI never present it as live.
  */
 const INTELLIGENCE_MAX_STALE_MS =
-  10 * 60_000;
+  30 * 60_000;
 
 const PROVIDER_RETRY_DELAY_MS =
   1_500;
