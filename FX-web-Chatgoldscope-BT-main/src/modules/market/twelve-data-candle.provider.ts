@@ -18,16 +18,19 @@ const REQUEST_TIMEOUT_MS = 12_000;
  * Candle data does not need to be re-downloaded
  * for every chat request.
  *
- * Shorter timeframes refresh more frequently.
+ * Shorter timeframes refresh more frequently, but never faster than a
+ * candle can change meaningfully: this keeps Twelve Data usage near
+ * 17 requests/hour no matter how many users are online (the cache is shared).
+ * Live price is fetched separately (see twelve-data-market.provider.ts).
  */
 const CACHE_TTL_MS: Record<
   MarketTimeframe,
   number
 > = {
-  M15: 45_000,
-  H1: 3 * 60_000,
-  H4: 10 * 60_000,
-  D1: 30 * 60_000,
+  M15: 5 * 60_000,
+  H1: 15 * 60_000,
+  H4: 60 * 60_000,
+  D1: 6 * 60 * 60_000,
 };
 
 /*
@@ -41,10 +44,10 @@ const MAX_STALE_AGE_MS: Record<
   MarketTimeframe,
   number
 > = {
-  M15: 10 * 60_000,
-  H1: 30 * 60_000,
-  H4: 2 * 60 * 60_000,
-  D1: 6 * 60 * 60_000,
+  M15: 30 * 60_000,
+  H1: 60 * 60_000,
+  H4: 4 * 60 * 60_000,
+  D1: 24 * 60 * 60_000,
 };
 
 const TIMEFRAME_INTERVAL_MAP: Record<
